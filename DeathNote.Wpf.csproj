@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>DeathNote</AssemblyName>
+    <RootNamespace>DeathNote.Wpf</RootNamespace>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <Version>3.1.0</Version>
+    <InformationalVersion>3.01</InformationalVersion>
+    <FileVersion>3.1.0.0</FileVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.15" />
+    <!-- The entire game integration is embedded in the WPF application.
+         No external Python, PowerShell or legacy source tree is needed by users. -->
+    <EmbeddedResource Include="GameIntegration\StagingRoom.lua" LogicalName="DeathNote.Wpf.GameIntegration.StagingRoom.lua" />
+    <EmbeddedResource Include="GameIntegration\MatchTracker.lua" LogicalName="DeathNote.Wpf.GameIntegration.MatchTracker.lua" />
+    <EmbeddedResource Include="GameIntegration\lobby_icons\DN_favorite.dds" LogicalName="DeathNote.Wpf.GameIntegration.lobby_icons.DN_favorite.dds" />
+    <EmbeddedResource Include="GameIntegration\lobby_icons\DN_good.dds" LogicalName="DeathNote.Wpf.GameIntegration.lobby_icons.DN_good.dds" />
+    <EmbeddedResource Include="GameIntegration\lobby_icons\DN_warn.dds" LogicalName="DeathNote.Wpf.GameIntegration.lobby_icons.DN_warn.dds" />
+    <EmbeddedResource Include="GameIntegration\lobby_icons\DN_bad.dds" LogicalName="DeathNote.Wpf.GameIntegration.lobby_icons.DN_bad.dds" />
+    <EmbeddedResource Include="GameIntegration\lobby_icons\DN_autokick.dds" LogicalName="DeathNote.Wpf.GameIntegration.lobby_icons.DN_autokick.dds" />
+    <Resource Include="Assets\empty-deathnote-v3.db" />
+    <Resource Include="Assets\feather.png" />
+    <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\civilizations\*.png" />
+    <Resource Include="Assets\text_icons\*.png" />
+    <Resource Include="Assets\markers\good.png" />
+    <Resource Include="Assets\markers\warn.png" />
+    <Resource Include="Assets\markers\bad.png" />
+    <Resource Include="Assets\markers\favorite.png" />
+    <Resource Include="Assets\markers\autokick.png" />
+    <Resource Include="Assets\footer\autokick_off.png" />
+    <Resource Include="Assets\footer\autokick_on.png" />
+    <Resource Include="Assets\footer\ban.png" />
+    <Resource Include="Assets\footer\lobby.png" />
+    <Resource Include="Assets\footer\games.png" />
+    <Resource Include="Assets\footer\visible.png" />
+    <Resource Include="Assets\footer\database.png" />
+  </ItemGroup>
+</Project>
