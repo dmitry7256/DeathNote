@@ -1,0 +1,299 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:markup="clr-namespace:DeathNote.Wpf.Infrastructure" x:Class="DeathNote.Wpf.Views.PlayersView">
+  <UserControl.Resources>
+    <!-- Compact, uniform interactive filter chips, no dependency on operating-system checkbox chrome. -->
+    <Style x:Key="PlayerFilterChip" TargetType="CheckBox">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{StaticResource Fg}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="CheckBox">
+            <Border x:Name="ChipBackground" Background="{StaticResource Field}"
+                    BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5"
+                    Padding="7,5">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border x:Name="StateDot" Width="8" Height="8" CornerRadius="2"
+                        Background="{StaticResource Disabled}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True"/>
+              </StackPanel>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="ChipBackground" Property="Background" Value="{StaticResource AccentSoft}"/>
+                <Setter TargetName="ChipBackground" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                <Setter TargetName="StateDot" Property="Background" Value="#FFF1B8CB"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ChipBackground" Property="BorderBrush" Value="{StaticResource Accent}"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="0"/>
+      <ColumnDefinition Width="244"/>
+    </Grid.ColumnDefinitions>
+
+    <Grid Grid.Column="0" MinWidth="0" Margin="14,10,12,12">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <!-- Single-row filter toolbar: search expands, ratings and chips retain fixed space. -->
+      <!-- Transparent, single-row filters: no shared panel / background beneath controls. -->
+      <Grid Grid.Row="0" Margin="0,0,0,9">
+        <Grid Height="33">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="161"/>
+            <ColumnDefinition Width="89"/>
+            <ColumnDefinition Width="81"/>
+            <ColumnDefinition Width="91"/>
+            <ColumnDefinition Width="*" MinWidth="85"/>
+            <ColumnDefinition Width="61"/>
+          </Grid.ColumnDefinitions>
+          <ComboBox Grid.Column="0" SelectedValuePath="Tag" SelectedValue="{Binding PlayerRatingFilter}"
+                    Height="32" FontSize="12" MinWidth="154" Margin="0,0,7,0" VerticalAlignment="Center"
+                    AutomationProperties.Name="Filter by rating">
+            <ComboBoxItem Tag="all" Content="All ratings"/>
+            <ComboBoxItem Tag="unrated" Content="Unrated"/>
+            <ComboBoxItem Tag="good"><StackPanel Orientation="Horizontal"><Image Source="/Assets/markers/good.png" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Good"/></StackPanel></ComboBoxItem>
+            <ComboBoxItem Tag="warn"><StackPanel Orientation="Horizontal"><Image Source="/Assets/markers/warn.png" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Questionable"/></StackPanel></ComboBoxItem>
+            <ComboBoxItem Tag="bad"><StackPanel Orientation="Horizontal"><Image Source="/Assets/markers/bad.png" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Bad"/></StackPanel></ComboBoxItem>
+          </ComboBox>
+          <CheckBox Grid.Column="1" Content="Favorites" Style="{StaticResource PlayerFilterChip}"
+                    IsChecked="{Binding OnlyFavorites}" Margin="0,0,6,0"/>
+          <CheckBox Grid.Column="2" Content="Banned" Style="{StaticResource PlayerFilterChip}"
+                    IsChecked="{Binding OnlyBanned}" Margin="0,0,6,0"/>
+          <CheckBox Grid.Column="3" Content="In lobby" Style="{StaticResource PlayerFilterChip}"
+                    IsChecked="{Binding OnlyInLobby}" Margin="0,0,7,0"/>
+          <TextBox x:Name="PlayerSearch" Grid.Column="4" AutomationProperties.Name="Search players"
+                   Height="32" Style="{StaticResource SearchInputTextBox}" Margin="0,0,7,0"
+                   Text="{Binding PlayerQuery,UpdateSourceTrigger=PropertyChanged}"/>
+          <Button Grid.Column="5" Style="{StaticResource SubtleButton}" Content="Reset"
+                  Height="32" FontSize="12" Click="ResetFilters"/>
+        </Grid>
+      </Grid>
+
+      <Grid Background="Transparent" ClipToBounds="True" Grid.Row="1">
+        <DataGrid x:Name="PlayersGrid" ItemsSource="{Binding PlayerView}" SelectedItem="{Binding SelectedPlayer,Mode=TwoWay}"
+                  FrozenColumnCount="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  ScrollViewer.VerticalScrollBarVisibility="Visible"
+                  HeadersVisibility="Column" HorizontalGridLinesBrush="Transparent" VerticalGridLinesBrush="Transparent"
+                  CanUserSortColumns="True" CanUserResizeColumns="True" CanUserReorderColumns="False" Sorting="PlayersGridSorting">
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Header="★" Width="40" CanUserSort="True" SortMemberPath="Favorite" HeaderStyle="{StaticResource FavoriteSortHeader}">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding FavoriteGlyph}" HorizontalAlignment="Left" Margin="4,0,0,0" VerticalAlignment="Center" FontSize="18">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="White"/>
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Favorite}" Value="True">
+                            <Setter Property="Foreground" Value="#FFF1C66F"/>
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="Nickname" Width="1.35*" MinWidth="94" SortMemberPath="Nickname">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <TextBlock markup:Civ5MarkupText.Markup="{Binding Nickname}" FontSize="12"
+                             Foreground="{StaticResource Fg}" VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis" Margin="5,0,0,0"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="Rating" Width="76" MinWidth="76" SortMemberPath="Marker" HeaderStyle="{StaticResource CenteredColumnHeader}">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <Image Source="{Binding MarkerIconPath}" Width="18" Height="18" HorizontalAlignment="Center" Margin="0,0,11,0"
+                         VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" Visibility="{Binding HasMarker,Converter={StaticResource BoolToVisibility}}"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Header="W" Binding="{Binding Wins}" Width="43" ElementStyle="{StaticResource StatGridText}"  SortMemberPath="Wins"/>
+            <DataGridTextColumn Header="L" Binding="{Binding Losses}" Width="43" ElementStyle="{StaticResource StatGridText}"  SortMemberPath="Losses"/>
+            <DataGridTextColumn Header="Q" Binding="{Binding Leaves}" Width="43" ElementStyle="{StaticResource StatGridText}"  SortMemberPath="Leaves"/>
+            <DataGridTemplateColumn x:Name="PlayerBanColumn" Header="Ban" Width="55" SortMemberPath="Autokick" HeaderStyle="{StaticResource CenteredColumnHeader}">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <Image Source="/Assets/markers/autokick.png" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,11,0" Visibility="{Binding Autokick,Converter={StaticResource BoolToVisibility}}"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn x:Name="PlayerNoteColumn" Header="Note" Binding="{Binding Note}" Width="1.00*" MinWidth="70" ElementStyle="{StaticResource GridText}" SortMemberPath="Note"/>
+          </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock Text="No players match the current filters" HorizontalAlignment="Center"
+                   VerticalAlignment="Center" Foreground="{StaticResource Muted}" IsHitTestVisible="False"
+                   FontSize="12" TextWrapping="Wrap" TextAlignment="Center">
+          <TextBlock.Style><Style TargetType="TextBlock">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers><DataTrigger Binding="{Binding PlayerView.IsEmpty}" Value="True">
+              <Setter Property="Visibility" Value="Visible"/>
+            </DataTrigger></Style.Triggers>
+          </Style></TextBlock.Style>
+        </TextBlock>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Column="2" Background="{StaticResource Sidebar}" BorderBrush="#FF352832"
+            BorderThickness="1,0,0,0" CornerRadius="0" Padding="13,12,13,12">
+      <Grid>
+        <Grid>
+          <Grid.Style>
+            <Style TargetType="Grid">
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedPlayer}" Value="{x:Null}">
+                  <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Grid.Style>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*" MinHeight="85"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,7">
+          <TextBlock markup:Civ5MarkupText.Markup="{Binding SelectedPlayer.Nickname}" FontSize="17"
+                     FontWeight="SemiBold" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                     LineHeight="22" LineStackingStrategy="BlockLineHeight" MaxHeight="44"/>
+          <!-- Steam ID is informational. Opening the profile is a full-size action in the button group. -->
+          <TextBlock Text="{Binding SelectedPlayer.SteamId}" Margin="0,3,0,0" FontSize="11"
+                     Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
+          <TextBlock Text="{Binding PreviousNameSearchHint}" FontSize="10" Foreground="#FFF1C66F"
+                     Margin="0,2,0,0">
+            <TextBlock.Style><Style TargetType="TextBlock">
+              <Setter Property="Visibility" Value="Collapsed"/>
+              <Style.Triggers><DataTrigger Binding="{Binding PreviousNameSearchHint}" Value="Found via previous nickname">
+                <Setter Property="Visibility" Value="Visible"/>
+              </DataTrigger></Style.Triggers>
+            </Style></TextBlock.Style>
+          </TextBlock>
+        </StackPanel>
+
+        <!-- Compact inline editor; the original emoji-like rating images and autosave remain unchanged. -->
+        <Grid Grid.Row="1" Margin="0,0,0,12" Height="34">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="51"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <TextBlock Grid.Column="0" Text="RATING" Style="{StaticResource Eyebrow}"
+                     FontSize="10" VerticalAlignment="Center" Margin="0,0,5,0"/>
+          <ComboBox Grid.Column="1" x:Name="RatingSelect" SelectedValuePath="Tag" Height="33"
+                    FontSize="12" SelectionChanged="RatingChanged" VerticalAlignment="Center"
+                    AutomationProperties.Name="Set player rating">
+            <ComboBoxItem Tag="" Content="— No rating"/>
+            <ComboBoxItem Tag="good"><StackPanel Orientation="Horizontal"><Image Source="/Assets/markers/good.png" Width="18" Height="18" Margin="0,0,8,0"/><TextBlock Text="Good"/></StackPanel></ComboBoxItem>
+            <ComboBoxItem Tag="warn"><StackPanel Orientation="Horizontal"><Image Source="/Assets/markers/warn.png" Width="18" Height="18" Margin="0,0,8,0"/><TextBlock Text="Questionable"/></StackPanel></ComboBoxItem>
+            <ComboBoxItem Tag="bad"><StackPanel Orientation="Horizontal"><Image Source="/Assets/markers/bad.png" Width="18" Height="18" Margin="0,0,8,0"/><TextBlock Text="Bad"/></StackPanel></ComboBoxItem>
+          </ComboBox>
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="0,0,0,8">
+        <Grid Margin="3,5">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <StackPanel HorizontalAlignment="Center">
+              <TextBlock Text="WINS" Style="{StaticResource Eyebrow}" HorizontalAlignment="Center" FontSize="9"/>
+              <TextBlock Text="{Binding SelectedPlayer.Wins}" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,3,0,3"/>
+              <StackPanel Orientation="Horizontal"><Button Style="{StaticResource CounterMinusButton}" Click="DecWins" AutomationProperties.Name="Decrease wins" Margin="0,0,4,0"/><Button Style="{StaticResource CounterPlusButton}" Click="IncWins" AutomationProperties.Name="Increase wins"/></StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+              <TextBlock Text="LOSSES" Style="{StaticResource Eyebrow}" HorizontalAlignment="Center" FontSize="9"/>
+              <TextBlock Text="{Binding SelectedPlayer.Losses}" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,3,0,3"/>
+              <StackPanel Orientation="Horizontal"><Button Style="{StaticResource CounterMinusButton}" Click="DecLosses" AutomationProperties.Name="Decrease losses" Margin="0,0,4,0"/><Button Style="{StaticResource CounterPlusButton}" Click="IncLosses" AutomationProperties.Name="Increase losses"/></StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+              <TextBlock Text="QUITS" Style="{StaticResource Eyebrow}" HorizontalAlignment="Center" FontSize="9"/>
+              <TextBlock Text="{Binding SelectedPlayer.Leaves}" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,3,0,3"/>
+              <StackPanel Orientation="Horizontal"><Button Style="{StaticResource CounterMinusButton}" Click="DecLeaves" AutomationProperties.Name="Decrease leaves" Margin="0,0,4,0"/><Button Style="{StaticResource CounterPlusButton}" Click="IncLeaves" AutomationProperties.Name="Increase leaves"/></StackPanel>
+            </StackPanel>
+        </Grid>
+        </Grid>
+
+        <Grid Grid.Row="3" Margin="0,0,0,9" MinHeight="85">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <TextBlock Text="Note" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/>
+          <TextBox x:Name="PlayerNote" Grid.Row="1" TextWrapping="Wrap" AcceptsReturn="True" TextChanged="PlayerNoteChanged" LostKeyboardFocus="PlayerNoteLostFocus"
+                   VerticalScrollBarVisibility="Auto" VerticalAlignment="Stretch" Padding="10,7"/>
+        </Grid>
+
+        <!-- Keep the original full-width vertical order, update visual styles only. -->
+        <StackPanel Grid.Row="4">
+          <Button Style="{StaticResource PlayerSecondaryButton}" Click="OpenSteamProfile" Margin="0,0,0,5"
+                  AutomationProperties.Name="Open Steam profile">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+              <Path Data="M 10,3 H 18 V 11 M 18,3 L 9,12 M 16,13 V 18 H 4 V 6 H 9"
+                    Stroke="#FFEBD7E1" StrokeThickness="1.8" StrokeStartLineCap="Round"
+                    StrokeLineJoin="Round" Fill="Transparent" Width="14" Height="14"
+                    Stretch="Uniform" Margin="0,0,7,0"/>
+              <TextBlock Text="Open Steam profile"/>
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource PlayerSecondaryButton}" Click="OpenPlayerHistory" Margin="0,0,0,5">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+              <!-- Calendar-with-match-entries icon differentiates player match history from nickname history. -->
+              <Path Data="M 5,4 H 19 A 2,2 0 0 1 21,6 V 19 A 2,2 0 0 1 19,21 H 5 A 2,2 0 0 1 3,19 V 6 A 2,2 0 0 1 5,4 Z M 8,2 V 6 M 16,2 V 6 M 3,10 H 21 M 8,14 H 10 M 14,14 H 16 M 8,18 H 10 M 14,18 H 16"
+                    Stroke="#FFEBD7E1" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeLineJoin="Round"
+                    Fill="Transparent" Width="14" Height="14" Stretch="Uniform" Margin="0,0,7,0"/>
+              <TextBlock Text="Player match history"/>
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource PlayerSecondaryButton}" Click="OpenNicknameHistory" Margin="0,0,0,5">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+              <Path Data="M 3,5 H 18 M 3,10 H 18 M 3,15 H 14 M 3,20 H 14"
+                    Stroke="#FFEBD7E1" StrokeThickness="1.6" StrokeStartLineCap="Round"
+                    Fill="Transparent" Width="14" Height="14" Stretch="Uniform" Margin="0,0,7,0"/>
+              <TextBlock Text="Nickname history"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="FavoriteButton" Style="{StaticResource PlayerSecondaryButton}" Click="ToggleFavorite" Margin="0,0,0,5">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+              <TextBlock x:Name="FavoriteButtonIcon" Text="☆" FontSize="16" Foreground="#FFF1C66F" Width="16" Margin="0,-1,6,0"/>
+              <TextBlock x:Name="FavoriteButtonLabel" Text="Add to favorites"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="BanButton" Style="{StaticResource PlayerBanButton}" Click="ToggleBan">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+              <Path Data="M 3,6 L 19,6 M 8,3 L 14,3 M 6,7 L 7,20 L 17,20 L 18,7 M 10,10 L 10,17 M 14,10 L 14,17"
+                    Stroke="#FFFFA2B5" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeLineJoin="Round"
+                    Fill="Transparent" Width="14" Height="14" Stretch="Uniform" Margin="0,0,7,0"/>
+              <TextBlock x:Name="BanButtonLabel" Text="Ban player"/>
+            </StackPanel>
+          </Button>
+          <!-- This label is shown only for failed saves; normal saves stay silent. -->
+          <TextBlock x:Name="AutoSaveStatus" Text="" FontSize="10" Visibility="Collapsed"
+                     Foreground="#FFFFA2B5" HorizontalAlignment="Center" Margin="0,3,0,0"/>
+        </StackPanel>
+        </Grid>
+        <TextBlock Text="Select a player" FontSize="13" Foreground="{StaticResource Muted}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Visibility" Value="Collapsed"/>
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedPlayer}" Value="{x:Null}">
+                  <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

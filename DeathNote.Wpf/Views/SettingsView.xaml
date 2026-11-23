@@ -1,0 +1,211 @@
+<UserControl x:Class="DeathNote.Wpf.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinHeight="0">
+  <!-- The settings surface deliberately has no page-level ScrollViewer.
+       Only the long, variable-length game diagnostic can scroll in its own viewport. -->
+  <UserControl.Resources>
+    <Style x:Key="SettingsButton" TargetType="Button" BasedOn="{StaticResource SubtleButton}">
+      <Setter Property="Height" Value="32"/>
+      <Setter Property="MinHeight" Value="32"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="FontWeight" Value="Medium"/>
+      <Setter Property="Padding" Value="8,2"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="SettingsPrimaryButton" TargetType="Button" BasedOn="{StaticResource AccentButton}">
+      <Setter Property="Height" Value="32"/>
+      <Setter Property="MinHeight" Value="32"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Padding" Value="8,2"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="SettingsHeading" TargetType="TextBlock" BasedOn="{StaticResource Eyebrow}">
+      <Setter Property="FontSize" Value="11.5"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="SettingsNote" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="LineHeight" Value="16"/>
+      <Setter Property="Foreground" Value="#FFCCBAC6"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="SettingsMutedNote" TargetType="TextBlock" BasedOn="{StaticResource SettingsNote}">
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    </Style>
+  </UserControl.Resources>
+
+  <Grid Margin="8,5,8,6" UseLayoutRounding="True">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" MinWidth="0"/>
+      <ColumnDefinition Width="1"/>
+      <ColumnDefinition Width="*" MinWidth="0"/>
+    </Grid.ColumnDefinitions>
+    <Border Grid.Column="1" Background="#FF40303B"/>
+
+    <!-- Left: compact profile controls + game integration. The diagnostic receives remaining height. -->
+    <Grid Grid.Column="0" Margin="10,2,17,0">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+        <Border Background="{StaticResource Accent}" Width="3" Height="13" CornerRadius="2" Margin="0,0,9,0"/>
+        <TextBlock Text="PLAYER PROFILE" Style="{StaticResource SettingsHeading}"/>
+      </StackPanel>
+
+      <Grid Grid.Row="1" Margin="0,0,0,6">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="8"/>
+          <ColumnDefinition Width="144"/>
+        </Grid.ColumnDefinitions>
+        <TextBox Grid.Column="0" x:Name="Nickname"
+                 Text="{Binding LocalNickname,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+                 Height="32" FontSize="13" Padding="9,3" VerticalContentAlignment="Center"/>
+        <Button Grid.Column="2" Style="{StaticResource SettingsPrimaryButton}"
+                Content="Save nickname" Click="SaveNickname"/>
+      </Grid>
+      <TextBlock Grid.Row="2" Text="Your in-game nickname helps identify Civilization V matches"
+                 Style="{StaticResource SettingsMutedNote}" Margin="0,0,0,7"/>
+
+      <Border Grid.Row="3" Height="1" Background="#FF40303B" Margin="0,6,0,11"/>
+      <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,8">
+        <Border Background="{StaticResource Accent}" Width="3" Height="13" CornerRadius="2" Margin="0,0,9,0"/>
+        <TextBlock Text="GAME INTEGRATION" Style="{StaticResource SettingsHeading}"/>
+      </StackPanel>
+      <CheckBox Grid.Row="5" x:Name="AutoKickToggle"
+                Content="Auto-kick banned players when hosting"
+                IsChecked="{Binding AutoKickEnabled,Mode=OneWay}"
+                Click="AutoKickChanged" Margin="0,0,0,7" FontSize="12.5"/>
+      <TextBlock Grid.Row="6" Text="{Binding BridgeStatus}"
+                 Style="{StaticResource SettingsNote}" Foreground="#FFE0B5C6"
+                 Margin="0,0,0,4"/>
+      <TextBlock Grid.Row="7"
+                 Text="Auto-kick requires the lobby script and host privileges · Check modules after Steam file verification"
+                 Style="{StaticResource SettingsMutedNote}" Margin="0,0,0,9"/>
+
+      <Grid Grid.Row="8" Margin="0,0,0,6">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="8"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Button Grid.Column="0" x:Name="CheckCivModulesButton" Style="{StaticResource SettingsButton}"
+                Content="Check modules" Click="CheckCivModules"/>
+        <Button Grid.Column="2" x:Name="RepairCivModulesButton" Style="{StaticResource SettingsPrimaryButton}"
+                Content="Repair / install" Click="RepairCivModules"/>
+      </Grid>
+      <Grid Grid.Row="9" Margin="0,0,0,7">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="8"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Button Grid.Column="0" Style="{StaticResource SettingsButton}"
+                Content="Choose game folder" Click="ChooseGameFolder"/>
+        <Button Grid.Column="2" Style="{StaticResource SettingsButton}"
+                Content="Choose config.ini" Click="ChooseConfigFile"/>
+      </Grid>
+      <Border Grid.Row="10" MinHeight="90" Margin="0,0,0,7" Padding="8,6"
+              CornerRadius="5" Background="#FF211A23"
+              BorderBrush="#FF40303B" BorderThickness="1">
+        <ScrollViewer x:Name="CivIntegrationReportScroll"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Visible"
+                      CanContentScroll="False">
+          <TextBlock x:Name="CivIntegrationSummary"
+                     Text="Not checked — select Check modules to inspect Civilization V"
+                     Foreground="#FFCDBAC7" FontSize="12" LineHeight="16"
+                     TextWrapping="Wrap"/>
+        </ScrollViewer>
+      </Border>
+      <TextBlock Grid.Row="11"
+                 Text="Repair updates the Civ V Lua/XML/DDS files and logging · Original files are backed up · Other lobby modifications may require reinstalling"
+                 Style="{StaticResource SettingsNote}" Margin="0,0,0,1"/>
+    </Grid>
+
+    <!-- Right: database, updates and diagnostics stay visible without page scrolling. -->
+    <StackPanel Grid.Column="2" Margin="17,2,10,0">
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+        <Border Background="{StaticResource Accent}" Width="3" Height="13" CornerRadius="2" Margin="0,0,9,0"/>
+        <TextBlock Text="DATA &amp; SAFETY" Style="{StaticResource SettingsHeading}"/>
+      </StackPanel>
+      <TextBlock Text="Data workspace" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,3"/>
+      <TextBlock Text="{Binding Workspace}" Style="{StaticResource SettingsMutedNote}"
+                 TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,0,0,9"/>
+
+      <Grid Margin="0,0,0,6">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="8"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Button Grid.Column="0" Style="{StaticResource SettingsPrimaryButton}"
+                Content="Backup database" Click="Backup"/>
+        <Button Grid.Column="2" Style="{StaticResource SettingsButton}"
+                Content="Check integrity" Click="Integrity"/>
+      </Grid>
+      <Grid Margin="0,0,0,8">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="8"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Button Grid.Column="0" Style="{StaticResource SettingsButton}"
+                Content="Export database" Click="ExportDatabase"/>
+        <Button Grid.Column="2" Style="{StaticResource SettingsButton}"
+                Content="Import database" Click="ImportDatabase"/>
+      </Grid>
+      <TextBlock Text="Export saves a complete copy · Import validates the file and creates a recovery backup before replacement"
+                 Style="{StaticResource SettingsMutedNote}"/>
+
+      <Border Height="1" Background="#FF40303B" Margin="0,10,0,9"/>
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+        <Border Background="{StaticResource Accent}" Width="3" Height="13" CornerRadius="2" Margin="0,0,9,0"/>
+        <TextBlock Text="APPLICATION UPDATES" Style="{StaticResource SettingsHeading}"/>
+      </StackPanel>
+      <Grid Margin="0,0,0,6">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="8"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Button Grid.Column="0" x:Name="CheckUpdateButton" Style="{StaticResource SettingsPrimaryButton}"
+                Content="Check for updates" Click="CheckUpdates"/>
+        <Button Grid.Column="2" Style="{StaticResource SettingsButton}"
+                Content="Release page" Click="OpenReleases"/>
+      </Grid>
+      <Button x:Name="DownloadUpdateButton" Style="{StaticResource SettingsButton}"
+              Content="Download and install update" Click="DownloadUpdate" IsEnabled="False"
+              Margin="0,0,0,7"/>
+      <TextBlock x:Name="UpdateStatus" Text="Checks for a compatible Windows installer and can launch it directly"
+                 Style="{StaticResource SettingsMutedNote}" MaxHeight="32" TextTrimming="CharacterEllipsis"/>
+
+      <Border Height="1" Background="#FF40303B" Margin="0,10,0,9"/>
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,9">
+        <Border Background="{StaticResource Accent}" Width="3" Height="13" CornerRadius="2" Margin="0,0,9,0"/>
+        <TextBlock Text="DIAGNOSTICS" Style="{StaticResource SettingsHeading}"/>
+      </StackPanel>
+      <TextBlock Text="Performance benchmarks are included with the source package · Application logs remain in your data folder"
+                 Style="{StaticResource SettingsMutedNote}" Margin="0,0,0,9"/>
+      <Button Style="{StaticResource SettingsButton}"
+              Content="Open logs and data folder" Click="OpenWorkspaceFolder"/>
+    </StackPanel>
+  </Grid>
+</UserControl>

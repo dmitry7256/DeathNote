@@ -1,0 +1,58 @@
+<UserControl x:Class="DeathNote.Wpf.Views.EditMatchPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" IsTabStop="False">
+  <Grid Background="#DA18141B" ClipToBounds="True">
+    <!-- Inline modal: one persistent instance; centered panel, not a second Windows window. -->
+    <Border Background="#FF261F29" BorderBrush="#FF795267" BorderThickness="1" CornerRadius="9"
+            HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="430" Width="550" MaxWidth="550"
+            MaxHeight="540" Margin="12" Padding="15,13">
+      <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <TextBlock Text="EDIT MATCH" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,11"/>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="118"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="38"/><RowDefinition Height="38"/><RowDefinition Height="38"/>
+              <RowDefinition Height="38"/><RowDefinition Height="38"/><RowDefinition Height="38"/>
+              <RowDefinition Height="38"/><RowDefinition Height="38"/><RowDefinition Height="38"/>
+              <RowDefinition Height="84"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Match title" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+            <TextBox x:Name="TitleInput" MinWidth="0" Grid.Row="0" Grid.Column="1" Margin="0,2" VerticalContentAlignment="Center"/>
+            <TextBlock Grid.Row="1" Text="Map" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+            <TextBox x:Name="MapInput" MinWidth="0" Grid.Row="1" Grid.Column="1" Margin="0,2" VerticalContentAlignment="Center"/>
+            <TextBlock Grid.Row="2" Text="Start time" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+            <TextBox x:Name="StartedInput" MinWidth="0" Grid.Row="2" Grid.Column="1" Margin="0,2" VerticalContentAlignment="Center" ToolTip="dd.MM.yyyy HH:mm:ss"/>
+            <TextBlock Grid.Row="3" Text="Last record" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+            <TextBox x:Name="LastAtInput" MinWidth="0" Grid.Row="3" Grid.Column="1" Margin="0,2" VerticalContentAlignment="Center" ToolTip="dd.MM.yyyy HH:mm:ss"/>
+            <TextBlock Grid.Row="4" Text="First turn" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+            <TextBox x:Name="StartTurnInput" MinWidth="0" Grid.Row="4" Grid.Column="1" Margin="0,2" VerticalContentAlignment="Center"/>
+            <TextBlock Grid.Row="5" Text="Last turn" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+            <TextBox x:Name="LastTurnInput" MinWidth="0" Grid.Row="5" Grid.Column="1" Margin="0,2" VerticalContentAlignment="Center"/>
+            <TextBlock Grid.Row="6" Text="Result" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+            <ComboBox x:Name="ResultSelect" Grid.Row="6" Grid.Column="1" VerticalAlignment="Center"
+                      SelectionChanged="ResultChanged" SelectedValuePath="Tag">
+              <ComboBoxItem Content="Unspecified" Tag="Не указано"/>
+              <ComboBoxItem Content="Completed" Tag="Успешно"/>
+              <ComboBoxItem Content="Game crashed" Tag="Игра сломалась"/>
+              <ComboBoxItem Content="All players left" Tag="Все игроки вышли"/>
+              <ComboBoxItem Content="Restart" Tag="Рестарт"/>
+            </ComboBox>
+            <TextBlock Grid.Row="7" Text="Winner" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+            <ComboBox x:Name="WinnerSelect" Grid.Row="7" Grid.Column="1" VerticalAlignment="Center" DisplayMemberPath="Name" SelectedValuePath="Id"/>
+            <TextBlock Grid.Row="8" Text="Favorite" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+            <CheckBox x:Name="FavoriteToggle" Grid.Row="8" Grid.Column="1" Content="★ Favorite match"/>
+            <TextBlock Grid.Row="9" Text="Note" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,7,0,0"/>
+            <TextBox x:Name="NoteInput" Grid.Row="9" Grid.Column="1" Margin="0,2"
+                     TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+          </Grid>
+        </ScrollViewer>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+          <Button Style="{StaticResource SubtleButton}" Content="Cancel" Click="Cancel" Width="98" Margin="0,0,7,0"/>
+          <Button Style="{StaticResource PlayerSaveButton}" Height="31" Content="Save" Click="Save" Width="114"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>
