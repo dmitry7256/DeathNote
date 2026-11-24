@@ -136,7 +136,7 @@
         </ScrollViewer>
       </Border>
       <TextBlock Grid.Row="11"
-                 Text="Repair updates the Civ V Lua/XML/DDS files and logging · Original files are backed up · Other lobby modifications may require reinstalling"
+                 Text="Repair updates Civ V tracking and hover tips, removes old lobby badges and backs up modified files · Other lobby modifications may require reinstalling"
                  Style="{StaticResource SettingsNote}" Margin="0,0,0,1"/>
     </Grid>
 

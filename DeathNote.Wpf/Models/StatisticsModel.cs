@@ -13,6 +13,12 @@ public sealed class StatisticsModel : Observable
     public int Wins {get=>_wins;set {if(Set(ref _wins,value))Notify(nameof(WinRate));}}
     public int Decided {get=>_decided;set {if(Set(ref _decided,value))Notify(nameof(WinRate));}}
     public string WinRate => Decided==0?"—":(100.0*Wins/Decided).ToString("0.0")+"%";
+    private int _completedCount,_allLeftCount,_restartCount,_crashedCount,_unspecifiedCount;
+    public int CompletedCount {get=>_completedCount;private set=>Set(ref _completedCount,value);}
+    public int AllLeftCount {get=>_allLeftCount;private set=>Set(ref _allLeftCount,value);}
+    public int RestartCount {get=>_restartCount;private set=>Set(ref _restartCount,value);}
+    public int CrashedCount {get=>_crashedCount;private set=>Set(ref _crashedCount,value);}
+    public int UnspecifiedCount {get=>_unspecifiedCount;private set=>Set(ref _unspecifiedCount,value);}
     public ObservableCollection<CountRow> Results {get;}=[];
     public ObservableCollection<MonthCountRow> Months {get;}=[];
     public ObservableCollection<CountRow> Maps {get;}=[];
@@ -26,6 +32,11 @@ public sealed class StatisticsModel : Observable
         Decided=completed.Count(m=>m.WinnerId=="__local__" ||
                                    (!string.IsNullOrEmpty(m.WinnerId) && m.PlayerDetails.Any(p=>p.SteamId==m.WinnerId)) ||
                                    (!string.IsNullOrEmpty(m.WinnerId) && m.ParticipantNames.Length>0 && m.WinnerName!="Not selected"));
+        CompletedCount=completed.Count(m=>m.DisplayResult=="Completed");
+        AllLeftCount=completed.Count(m=>m.DisplayResult=="All players left");
+        RestartCount=completed.Count(m=>m.DisplayResult=="Restart");
+        CrashedCount=completed.Count(m=>m.DisplayResult=="Game crashed");
+        UnspecifiedCount=completed.Count(m=>m.DisplayResult is not ("Completed" or "All players left" or "Restart" or "Game crashed"));
         Results.Clear();
         foreach(var item in completed.GroupBy(m=>m.DisplayResult).OrderByDescending(g=>g.Count()))
             Results.Add(new CountRow(item.Key,item.Count()));

@@ -290,6 +290,12 @@ public sealed class SqliteRepository
         }
         bool markManual=(patch.Deleted && !Bool(old,"deleted")) || changeMetadata;
         if(markManual)next["manual_edit"]=true;
+        // Reconcile auto-awarded W/L/Q only when the outcome changes, or when this
+        // particular match has already generated awards. Never backfill old matches
+        // merely because their note, favorite, or review flag was edited.
+        bool outcomeChanged = !string.Equals(Str(old,"result"),patch.Result,StringComparison.Ordinal) ||
+            !string.Equals(Str(old,"winner_id"),patch.WinnerId=="__unset__"?"":patch.WinnerId,StringComparison.Ordinal) ||
+            Bool(old,"deleted")!=patch.Deleted;
         if (JsonNode.DeepEquals(old,next)) {tx.Commit();return;}
         // A lightweight, complete record snapshot is written BEFORE the transaction commits.
         // If it fails, the original data is not modified.
@@ -326,6 +332,8 @@ public sealed class SqliteRepository
           ("$map",patch.Map),("$started",Str(next,"started")),("$lastat",Str(next,"last_at")),
           ("$startturn",patch.StartTurn),("$lastturn",patch.LastTurn),
           ("$bits",bits),("$extra",extra.ToJsonString()),("$id",id));
+        if (outcomeChanged || HasMatchCounterAwards(c,tx,id))
+            ReconcileMatchCounters(c,tx,id,next);
         // Result/winner/delete/metadata affect derived statistics. Note/title/
         // favorites/review-only edits do not, so don't invalidate their cache.
         if(changeMetadata || patch.Deleted!=Bool(old,"deleted") ||
@@ -335,6 +343,104 @@ public sealed class SqliteRepository
         Audit(c,tx,"games",id,old,next);
         Increment(c,tx,"games");tx.Commit();
     },ct);
+
+    private sealed record MatchCounterAward(long Wins,long Losses,long Leaves);
+
+    private static bool HasMatchCounterAwards(SqliteConnection c,SqliteTransaction tx,string matchId)
+    {
+        // Databases imported from 3.00/3.01 have no award ledger yet.
+        if (Convert.ToInt64(Scalar(c,tx,
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='match_counter_awards'"),CultureInfo.InvariantCulture)==0)
+            return false;
+        return Scalar(c,tx,"SELECT 1 FROM match_counter_awards WHERE match_id=$id LIMIT 1",("$id",matchId)) is not null;
+    }
+
+    private static Dictionary<string,MatchCounterAward> DesiredMatchCounterAwards(JsonObject match)
+    {
+        var desired=new Dictionary<string,MatchCounterAward>(StringComparer.Ordinal);
+        if (Bool(match,"deleted") ||
+            (Str(match,"ended").Length==0 && Str(match,"menu_return_at").Length==0 && Str(match,"observed_end_at").Length==0) ||
+            match["players"] is not JsonObject players) return desired;
+        // The host is stored in local_nick; match_players contains only opponents.
+        var opponents=players.Select(x=>x.Key)
+            .Where(x=>x.Length==17 && x.All(char.IsAsciiDigit)).Distinct(StringComparer.Ordinal).ToArray();
+        string result=Str(match,"result");
+        string winner=Str(match,"winner_id");
+        if ((result is "Успешно" or "Completed") &&
+            (winner=="__local__" || opponents.Contains(winner,StringComparer.Ordinal)))
+        {
+            foreach (var sid in opponents)
+                desired[sid]=sid==winner ? new MatchCounterAward(1,0,0) : new MatchCounterAward(0,1,0);
+        }
+        else if ((result is "Все игроки вышли" or "All players left") && opponents.Length==1)
+        {
+            desired[opponents[0]]=new MatchCounterAward(0,0,1);
+        }
+        return desired;
+    }
+
+    /// <summary>
+    /// Reconcile only this match's auto-awarded counters. The ledger prevents repeat
+    /// awards, supports changes of winner/result, and reverses them on deletion.
+    /// Manual counters and records for other matches are never recomputed.
+    /// </summary>
+    private static void ReconcileMatchCounters(SqliteConnection c,SqliteTransaction tx,string matchId,JsonObject match)
+    {
+        Execute(c,tx,"""
+            CREATE TABLE IF NOT EXISTS match_counter_awards (
+                match_id TEXT NOT NULL, steamid TEXT NOT NULL,
+                wins INTEGER NOT NULL DEFAULT 0,
+                losses INTEGER NOT NULL DEFAULT 0,
+                leaves INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (match_id, steamid)
+            )
+            """);
+        var old=new Dictionary<string,MatchCounterAward>(StringComparer.Ordinal);
+        using(var cmd=Command(c,tx,"SELECT steamid,wins,losses,leaves FROM match_counter_awards WHERE match_id=$id",("$id",matchId)))
+        using(var reader=cmd.ExecuteReader())
+            while(reader.Read())old[reader.GetString(0)]=new MatchCounterAward(reader.GetInt64(1),reader.GetInt64(2),reader.GetInt64(3));
+        var desired=DesiredMatchCounterAwards(match);
+        if(old.Count==desired.Count && old.All(kv=>desired.TryGetValue(kv.Key,out var effect) && effect==kv.Value))
+            return;
+        bool anyPlayerChanged=false;
+        foreach(var sid in old.Keys.Concat(desired.Keys).Distinct(StringComparer.Ordinal).ToArray())
+        {
+            var before=old.GetValueOrDefault(sid,new MatchCounterAward(0,0,0));
+            var after=desired.GetValueOrDefault(sid,new MatchCounterAward(0,0,0));
+            long dw=after.Wins-before.Wins, dl=after.Losses-before.Losses, dq=after.Leaves-before.Leaves;
+            if(dw==0 && dl==0 && dq==0)continue;
+            var player=LoadPlayer(c,tx,sid);
+            if(player is null)
+            {
+                // Do not create fake player profiles for historic unknown Steam IDs.
+                // Keep a previously applied ledger entry if the profile vanished.
+                if(old.ContainsKey(sid))desired[sid]=before;
+                else desired.Remove(sid);
+                continue;
+            }
+            long wins=Number(player,"wins"),losses=Number(player,"losses"),leaves=Number(player,"leaves");
+            long nextWins=Math.Max(0,wins+dw),nextLosses=Math.Max(0,losses+dl),nextLeaves=Math.Max(0,leaves+dq);
+            if(nextWins!=wins || nextLosses!=losses || nextLeaves!=leaves)
+            {
+                var changed=(JsonObject)player.DeepClone();
+                changed["wins"]=nextWins;changed["losses"]=nextLosses;changed["leaves"]=nextLeaves;
+                Execute(c,tx,"""
+                    UPDATE players SET wins=$w,losses=$l,leaves=$q,present=(present | $bits)
+                    WHERE steamid=$sid
+                    """,("$w",nextWins),("$l",nextLosses),("$q",nextLeaves),
+                    ("$bits",Bit("wins",PlayerFields)|Bit("losses",PlayerFields)|Bit("leaves",PlayerFields)),("$sid",sid));
+                Audit(c,tx,"players",sid,player,changed);
+                anyPlayerChanged=true;
+            }
+        }
+        Execute(c,tx,"DELETE FROM match_counter_awards WHERE match_id=$id",("$id",matchId));
+        foreach(var (sid,effect) in desired)
+            Execute(c,tx,"""
+                INSERT INTO match_counter_awards(match_id,steamid,wins,losses,leaves)
+                VALUES($id,$sid,$w,$l,$q)
+                """,("$id",matchId),("$sid",sid),("$w",effect.Wins),("$l",effect.Losses),("$q",effect.Leaves));
+        if(anyPlayerChanged)Increment(c,tx,"players");
+    }
 
     /// <summary>
     /// Persist complete Lua rosters and match observations in one short transaction.

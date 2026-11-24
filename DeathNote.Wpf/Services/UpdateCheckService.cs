@@ -21,7 +21,7 @@ public static class UpdateCheckService
     public static async Task<UpdateResult> CheckAsync(CancellationToken ct = default)
     {
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("DeathNote-WPF/3.00");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("DeathNote-WPF/3.02");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         using var response = await client.GetAsync(Api, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
@@ -35,7 +35,7 @@ public static class UpdateCheckService
         string tag = release.GetProperty("tag_name").GetString() ?? "";
         if (!Version.TryParse(tag.TrimStart('v', 'V'), out var version))
             return new("Latest release uses an unsupported version tag.", null);
-        Version installed = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(3, 0);
+        Version installed = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(3, 1);
         if (version <= installed) return new("Current WPF build is up to date or newer than the stable release.", null);
         if (!release.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
             return new("No compatible Windows WPF package published.", null);

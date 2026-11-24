@@ -133,7 +133,7 @@ public partial class SettingsView : UserControl
             string warning="Reinstall the complete Death Note integration for Civilization V?\n\n"+
                 "Game: "+_gameDirectory+"\n\n"+
                 "The bundled StagingRoom.lua replaces the installed lobby script; custom third-party lobby modifications may need to be installed again. " +
-                "The repair also updates StagingRoom.xml, five icons, all InGame.lua trackers and config.ini.\n\n"+
+                "The repair also removes obsolete lobby badge XML/DDS files and updates all InGame.lua trackers and config.ini.\n\n"+
                 "Every modified original file will be backed up first. The game must stay closed. " +
                 "Your SQLite player/match database will not be changed.";
             if(MessageBox.Show(warning,"Death Note — confirm complete repair",

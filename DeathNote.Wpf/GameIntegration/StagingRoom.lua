@@ -382,13 +382,6 @@ local function DN_SteamID(id)
     return nil;
 end
 
--- Native Civ V inline icons; no custom texture/FontIconMapping edits.
-local dnMarkerIcons = {
-    good = "[COLOR_POSITIVE_TEXT][ICON_HAPPINESS_1][ENDCOLOR] ",
-    warn = "[COLOR_YELLOW][ICON_HAPPINESS_3][ENDCOLOR] ",
-    bad = "[COLOR_NEGATIVE_TEXT][ICON_HAPPINESS_4][ENDCOLOR] "
-};
-
 local function DN_BanActive(db, sid)
     local value = tostring(db.GetValue("dn.kick." .. sid));
     if value == "1" then return true; end
@@ -441,74 +434,16 @@ local function DN_CheckKicks()
     end
 end
 
-local function DN_ClearBadges(slot)
-    if slot.DNBadgeStrip then slot.DNBadgeStrip:SetHide(true); end
-    for i=1,3 do
-        local icon = slot["DNBadge" .. i];
-        if icon then icon:SetHide(true); end
-    end
-    if slot.PlayerNameLabel and slot.dnX ~= nil then
-        slot.PlayerNameLabel:SetOffsetVal(slot.dnX, slot.dnY);
-    end
-end
-
--- Each 16px texture sits in its own overlay strip, not directly beneath the name Label.
--- Keeping image coordinates relative to the strip avoids layout clipping and offset drift.
-local DN_BADGE_STEP = 18; -- 16px image + 2px gap
-local function DN_PaintName(slot, marker, badges)
-    local prefix = type(marker) == "string" and dnMarkerIcons[marker] or "";
-    prefix = prefix or "";
-    local key = tostring(marker or "") .. ":" .. tostring(badges or "");
-    if slot.dnPrefix == key then return; end
-    local label = slot.PlayerNameLabel;
-    if not label or slot.dnBaseName == nil then return; end
-    DN_ClearBadges(slot);
-    local width = slot.PlayerNameBox:GetSizeX() - label:GetOffsetX();
-    if slot.DNBadgeStrip and slot.DNBadge1 and slot.dnX ~= nil and tostring(badges or "") ~= "" then
-        local count = 0;
-        for token in string.gmatch(tostring(badges or ""), "[^,]+") do
-            if count >= 3 then break; end
-            if token == "favorite" or token == "autokick" or token == "good" or token == "warn" or token == "bad" then
-                local icon = slot["DNBadge" .. (count+1)];
-                if icon then
-                    icon:SetTexture("DN_" .. token .. ".dds");
-                    icon:SetTextureOffsetVal(0, 0); -- sample the whole 16x16 source
-                    -- Coordinates are local to DNBadgeStrip (not PlayerNameBox).
-                    icon:SetOffsetVal(count*DN_BADGE_STEP, 0);
-                    icon:SetHide(false);
-                    count = count + 1;
-                end
-            end
-        end
-        if count > 0 then
-            slot.DNBadgeStrip:SetOffsetVal(slot.dnX, 0);
-            slot.DNBadgeStrip:SetHide(false);
-            label:SetOffsetVal(slot.dnX + count*DN_BADGE_STEP, slot.dnY);
-            TruncateString(label, math.max(1, width - count*DN_BADGE_STEP), slot.dnRawName or slot.dnBaseName);
-        else label:SetText(slot.dnBaseName); end
-    elseif prefix ~= "" then
-        -- Legacy fallback if only Lua was updated.
-        TruncateString(label, math.max(1, width - 28), slot.dnRawName or slot.dnBaseName);
-        label:SetText(prefix .. label:GetText());
-    else label:SetText(slot.dnBaseName); end
-    slot.dnPrefix = key;
-end
+-- The stock Civilization V nickname is intentionally left unchanged.
+-- Player ratings, favorites, bans and counters are shown only in the hover
+-- tooltip; no badge images, prefixes or name offsets are installed.
 
 local function DN_UpdateSlot(slot, id)
     local sid = DN_SteamID(id);
     local tip = "";
-    local marker = "";
-    local badges = "";
-    -- A recycled slot must not receive another player's badge before the next stock refresh.
+    -- A recycled slot must not inherit another player's tooltip.
     if sid and slot.dnBoundSID == sid then
         local db = DN_Init();
-        marker = db.GetValue("dn.marker." .. sid);
-        badges = db.GetValue("dn.badges." .. sid) or "";
-        if not DN_BanActive(db, sid) then
-            local clean = {};
-            for token in string.gmatch(badges,"[^,]+") do if token ~= "autokick" then table.insert(clean,token); end end
-            badges = table.concat(clean,",");
-        end
         local value = db.GetValue("dn.player." .. sid);
         if type(value) == "string" and #value > 0 then
             tip = value;
@@ -518,12 +453,10 @@ local function DN_UpdateSlot(slot, id)
             tip = "DEATH NOTE[NEWLINE]\208\151\208\176\208\191\209\131\209\129\209\130\208\184\209\130\208\181 Death Note \208\180\208\187\209\143 \209\129\208\184\208\189\209\133\209\128\208\190\208\189\208\184\208\183\208\176\209\134\208\184\208\184 \208\177\208\176\208\183\209\139.";
         end
     end
-    DN_PaintName(slot, marker, badges);
     if slot.dnTooltip ~= tip then
         -- Only name controls, not the chat, ready state, or civilization tooltip.
         if slot.PlayerNameLabel then slot.PlayerNameLabel:SetToolTipString(tip); end
         if slot.PlayerNameBox then slot.PlayerNameBox:SetToolTipString(tip); end
-        for i=1,3 do local icon = slot["DNBadge" .. i]; if icon then icon:SetToolTipString(tip); end end
         slot.dnTooltip = tip;
     end
 end
@@ -536,9 +469,6 @@ local function DN_SafeSlot(slot, id)
             if slot.PlayerNameLabel then slot.PlayerNameLabel:SetToolTipString(""); end
             if slot.PlayerNameBox then slot.PlayerNameBox:SetToolTipString(""); end
             slot.dnTooltip = nil;
-            DN_ClearBadges(slot);
-            if slot.PlayerNameLabel and slot.dnBaseName ~= nil then slot.PlayerNameLabel:SetText(slot.dnBaseName); end
-            slot.dnPrefix = nil;
         end);
         dnDB = nil; dnReady = nil;
         if not dnWarned then print("[DEATHNOTE_LOBBY] ERROR: local tooltip unavailable"); dnWarned = true; end
@@ -548,16 +478,6 @@ end
 local function DN_Bind(slot, id, rawName)
     dnSlots[slot] = id;
     slot.dnBaseName = slot.PlayerNameLabel and slot.PlayerNameLabel:GetText() or nil;
-    slot.dnRawName = type(rawName) == "string" and rawName ~= "" and rawName or slot.dnBaseName;
-    slot.dnPrefix = nil;
-    if slot.DNBadge1 and slot.PlayerNameLabel then
-        local okXY, x, y = pcall(function() return slot.PlayerNameLabel:GetOffsetX(), slot.PlayerNameLabel:GetOffsetY(); end);
-        if okXY then
-            -- A refreshed row may reuse the same Image/Label instances. Always capture
-            -- the restored base position, never an already shifted badge position.
-            slot.dnX = x; slot.dnY = y;
-        else slot.dnX = nil; slot.dnY = nil; end
-    end
     local ok, sid = pcall(DN_SteamID, id);
     slot.dnBoundSID = ok and sid or nil;
     DN_SafeSlot(slot, id);
@@ -575,9 +495,7 @@ end
 local function DN_ClearSlots()
     for slot, _ in pairs(dnSlots) do
         DN_SafeSlot(slot, nil);
-        pcall(DN_ClearBadges, slot);
-        slot.dnX = nil; slot.dnY = nil;
-        slot.dnBaseName = nil; slot.dnRawName = nil; slot.dnBoundSID = nil; slot.dnPrefix = nil;
+        slot.dnBaseName = nil; slot.dnBoundSID = nil;
     end
     dnSlots = {};
 end

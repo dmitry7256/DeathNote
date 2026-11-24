@@ -6,6 +6,8 @@
   <Grid MinHeight="0">
     <Grid.RowDefinitions>
       <RowDefinition Height="63"/>
+      <RowDefinition Height="6"/>
+      <RowDefinition Height="54"/>
       <RowDefinition Height="8"/>
       <RowDefinition Height="*" MinHeight="0"/>
       <RowDefinition Height="8"/>
@@ -30,7 +32,30 @@
       </Border>
     </UniformGrid>
 
-    <Grid Grid.Row="2" MinHeight="0">
+    <UniformGrid Grid.Row="2" Columns="5">
+      <Border Background="{StaticResource Card}" CornerRadius="8" Margin="0,0,7,0" Padding="10,5">
+        <StackPanel><TextBlock Text="COMPLETED" Style="{StaticResource Eyebrow}" FontSize="10"/>
+          <TextBlock Text="{Binding Stats.CompletedCount}" FontSize="19" FontWeight="SemiBold"/></StackPanel>
+      </Border>
+      <Border Background="{StaticResource Card}" CornerRadius="8" Margin="0,0,7,0" Padding="10,5">
+        <StackPanel><TextBlock Text="ALL PLAYERS LEFT" Style="{StaticResource Eyebrow}" FontSize="10"/>
+          <TextBlock Text="{Binding Stats.AllLeftCount}" FontSize="19" FontWeight="SemiBold"/></StackPanel>
+      </Border>
+      <Border Background="{StaticResource Card}" CornerRadius="8" Margin="0,0,7,0" Padding="10,5">
+        <StackPanel><TextBlock Text="RESTART" Style="{StaticResource Eyebrow}" FontSize="10"/>
+          <TextBlock Text="{Binding Stats.RestartCount}" FontSize="19" FontWeight="SemiBold"/></StackPanel>
+      </Border>
+      <Border Background="{StaticResource Card}" CornerRadius="8" Margin="0,0,7,0" Padding="10,5">
+        <StackPanel><TextBlock Text="GAME CRASHED" Style="{StaticResource Eyebrow}" FontSize="10"/>
+          <TextBlock Text="{Binding Stats.CrashedCount}" FontSize="19" FontWeight="SemiBold"/></StackPanel>
+      </Border>
+      <Border Background="{StaticResource Card}" CornerRadius="8" Padding="10,5">
+        <StackPanel><TextBlock Text="UNSPECIFIED / OTHER" Style="{StaticResource Eyebrow}" FontSize="10"/>
+          <TextBlock Text="{Binding Stats.UnspecifiedCount}" FontSize="19" FontWeight="SemiBold"/></StackPanel>
+      </Border>
+    </UniformGrid>
+
+    <Grid Grid.Row="4" MinHeight="0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Grid.Column="0" Background="{StaticResource Card}" CornerRadius="9" Padding="11,8">
         <Grid MinHeight="0">
@@ -47,7 +72,7 @@
         </Grid>
       </Border>
     </Grid>
-    <Grid Grid.Row="4" MinHeight="0">
+    <Grid Grid.Row="6" MinHeight="0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Grid.Column="0" Background="{StaticResource Card}" CornerRadius="9" Padding="11,8">
         <Grid MinHeight="0">

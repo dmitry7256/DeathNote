@@ -40,14 +40,13 @@ public static class GameBridgeService
             var marker = p.Marker is "good" or "warn" or "bad" ? p.Marker : "";
             string text = "[COLOR_POSITIVE_TEXT]DEATH NOTE[ENDCOLOR][NEWLINE]" + SafeText(p.Nickname, 90) +
                 "[NEWLINE]Wins: " + p.Wins + "  Losses: " + p.Losses + "  Quits: " + p.Quits;
-            if (marker.Length != 0) text += "[NEWLINE]Rating: " + marker;
-            if (p.Favorite) text += "[NEWLINE]Favorites";
+            if (marker.Length != 0) text += "[NEWLINE]Rating: " + (marker switch
+            {
+                "good" => "Good", "warn" => "Questionable", "bad" => "Bad", _ => "Unrated"
+            });
+            if (p.Favorite) text += "[NEWLINE]Favorite: Yes";
             if (!string.IsNullOrWhiteSpace(p.Note)) text += "[NEWLINE]Note: " + SafeText(p.Note, 500);
             values["dn.player." + id] = text;
-            if (marker.Length != 0) values["dn.marker." + id] = marker;
-            var badges = new List<string>();
-            if (p.Favorite) badges.Add("favorite");
-            if (marker.Length != 0) badges.Add(marker);
             bool active = p.Banned;
             string kickValue = "1";
             if (DateTimeOffset.TryParse(p.BanUntil, CultureInfo.InvariantCulture,
@@ -59,9 +58,9 @@ public static class GameBridgeService
             if (active)
             {
                 values["dn.kick." + id] = kickValue;
-                badges.Add("autokick");
+                text += "[NEWLINE]Banned: Yes";
+                values["dn.player." + id] = text;
             }
-            if (badges.Count != 0) values["dn.badges." + id] = string.Join(',', badges);
         }
         string checksum = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             string.Join("\n", values.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Key + "=" + kv.Value)))));

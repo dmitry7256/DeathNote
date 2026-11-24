@@ -1,5 +1,5 @@
 #define AppName "Death Note"
-#define AppVersion "3.01"
+#define AppVersion "3.02"
 #define AppExe "DeathNote.exe"
 
 ; Per-user installation. Installed files are upgraded in-place by stable AppId.
@@ -11,7 +11,7 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName=Death Note {#AppVersion}
 AppPublisher=Death Note
-VersionInfoVersion=3.1.0.0
+VersionInfoVersion=3.2.0.0
 DefaultDirName={localappdata}\Programs\Death Note
 DefaultGroupName=Death Note
 DisableProgramGroupPage=yes
@@ -25,7 +25,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 OutputDir=..
-OutputBaseFilename=DeathNote_Setup_3.01_x64
+OutputBaseFilename=DeathNote_Setup_3.02_x64
 Compression=lzma2/ultra64
 SolidCompression=yes
 CloseApplications=yes

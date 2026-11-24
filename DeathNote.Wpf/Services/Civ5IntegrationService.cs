@@ -36,7 +36,7 @@ public static class Civ5IntegrationService
             Components.Select(c => $"{(c.Ready ? "✓" : c.Optional ? "·" : "!")} {c.Name}: {c.Detail}"));
     }
     public sealed record RepairResult(int FilesChanged, string BackupDirectory);
-    private sealed record Change(string Target, byte[] Bytes, string RelativeBackupPath);
+    private sealed record Change(string Target, byte[]? Bytes, string RelativeBackupPath, bool Remove=false);
     private sealed record ExistingFile(Change Change, byte[]? Before);
 
     public static bool IsGameRunning() => Processes.Any(name => Process.GetProcessesByName(name).Length != 0);
@@ -185,36 +185,22 @@ public static class Civ5IntegrationService
         try
         {
             string markup = Decode(File.ReadAllBytes(xml)).Text;
-            int badgeGroups = Regex.Matches(markup, Regex.Escape(XmlBegin)).Count;
-            bool ready = badgeGroups > 0 &&
-                Regex.Matches(markup, Regex.Escape(XmlEnd)).Count == badgeGroups &&
-                Enumerable.Range(1, 3).All(i => Regex.Matches(markup,
-                    "<Image\\b(?=[^>]*\\bID=\"DNBadge" + i + "\")(?=[^>]*\\bSize=\"16,16\")[^>]*>",
-                    RegexOptions.IgnoreCase).Count == badgeGroups) &&
-                markup.Contains("ID=\"DNBadgeStrip\"", StringComparison.Ordinal) &&
-                markup.Contains("Size=\"54,22\" NoClip=\"1\"", StringComparison.Ordinal) &&
-                markup.IndexOf("PlayerNameLabel", StringComparison.Ordinal) < markup.IndexOf(XmlBegin, StringComparison.Ordinal);
-            components.Add(new Component("Lobby XML / badge slots", ready,
-                ready ? "Three 16px badges in a dedicated overlay strip" : "Badge layout missing or outdated — repair available"));
+            bool noBadges = !markup.Contains(XmlBegin,StringComparison.Ordinal) &&
+                !markup.Contains(XmlEnd,StringComparison.Ordinal) &&
+                !markup.Contains("DNBadgeStrip",StringComparison.Ordinal) &&
+                !markup.Contains("DNBadge1",StringComparison.Ordinal);
+            components.Add(new Component("Lobby XML / native nicknames", noBadges,
+                noBadges ? "Stock nickname layout; Death Note details on hover" : "Old badge layout found — repair will remove it"));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            components.Add(new Component("Lobby XML / badge slots", false, e.Message));
+            components.Add(new Component("Lobby XML / native nicknames", false, e.Message));
         }
-        foreach (string name in Icons)
-        {
-            string filename = "DN_" + name + ".dds";
-            string target = Path.Combine(lobby, filename);
-            bool exists = File.Exists(target);
-            bool ready = false;
-            if (exists)
-            {
-                byte[] installed = File.ReadAllBytes(target);
-                ready = HasCorrectBadgeDimensions(installed) &&
-                    installed.AsSpan().SequenceEqual(Asset("lobby_icons." + filename));
-            }
-            components.Add(new Component("Icon " + name, ready, ready ? "Installed" : exists ? "Older version" : "Missing"));
-        }
+        var obsoleteTextures=Icons.Select(name=>Path.Combine(lobby,"DN_"+name+".dds"))
+            .Where(File.Exists).ToArray();
+        components.Add(new Component("Obsolete lobby textures",obsoleteTextures.Length==0,
+            obsoleteTextures.Length==0 ? "No badge textures installed" :
+            $"{obsoleteTextures.Length} old texture(s) will be removed after backup"));
         string[] gameScripts = InGameFiles(game).ToArray();
         if (gameScripts.Length == 0)
             components.Add(new Component("Match tracking (InGame.lua)", false, "No InGame.lua found under Assets/UI or Assets/DLC"));
@@ -320,42 +306,17 @@ public static class Civ5IntegrationService
     }
 
 
-    // Civ V's legacy UI can show only part of a non-power-of-two DDS.
-    // Use native 16x16 power-of-two DDS and identical Image.Size dimensions.
-    private static bool HasCorrectBadgeDimensions(byte[] dds) =>
-        dds.Length >= 128 && dds[0] == (byte)'D' && dds[1] == (byte)'D' &&
-        dds[2] == (byte)'S' && dds[3] == (byte)' ' &&
-        BitConverter.ToInt32(dds, 12) == 16 && BitConverter.ToInt32(dds, 16) == 16;
-
+    // Remove only XML elements marked as ours, leaving stock game labels and
+    // unrelated custom lobby UI controls untouched.
     private static byte[] PatchXml(byte[] old)
     {
-        var encoded = Decode(old);
-        string xml = Regex.Replace(encoded.Text, @"(?s)<!-- DEATHNOTE_BADGES_BEGIN -->.*?<!-- DEATHNOTE_BADGES_END -->\s*", "");
-        // Place the badges in their own container. Earlier revisions made each Image
-        // a direct sibling of the name Label: parts of the sprites were obscured by
-        // the label's render surface on several Civ V layouts and resolutions.
-        const string controls = "<!-- DEATHNOTE_BADGES_BEGIN -->\n" +
-            "<Container ID=\"DNBadgeStrip\" Anchor=\"L,C\" Offset=\"0,0\" Size=\"54,22\" NoClip=\"1\" Hidden=\"1\">\n" +
-            "<Image ID=\"DNBadge1\" Anchor=\"L,C\" Offset=\"0,0\" Size=\"16,16\" NoClip=\"1\" TextureOffset=\"0,0\" Texture=\"DN_favorite.dds\" Hidden=\"1\" />\n" +
-            "<Image ID=\"DNBadge2\" Anchor=\"L,C\" Offset=\"18,0\" Size=\"16,16\" NoClip=\"1\" TextureOffset=\"0,0\" Texture=\"DN_favorite.dds\" Hidden=\"1\" />\n" +
-            "<Image ID=\"DNBadge3\" Anchor=\"L,C\" Offset=\"36,0\" Size=\"16,16\" NoClip=\"1\" TextureOffset=\"0,0\" Texture=\"DN_favorite.dds\" Hidden=\"1\" />\n" +
-            "</Container>\n" +
-            "<!-- DEATHNOTE_BADGES_END -->\n";
-        int found = 0;
-        // The game draws later XML siblings on top of earlier ones. Insert AFTER
-        // PlayerNameLabel so its backing surface cannot cover badge pixels.
-        string patched = Regex.Replace(xml,
-            "<Label\\b(?=[^>]*\\bID\\s*=\\s*['\"]PlayerNameLabel['\"])[^>]*/\\s*>",
-            m => { found++; return m.Value + "\n" + controls; }, RegexOptions.IgnoreCase);
-        if (found == 0)
-        {
-            patched = Regex.Replace(xml,
-                "(?s)<Label\\b(?=[^>]*\\bID\\s*=\\s*['\"]PlayerNameLabel['\"])[^>]*>.*?</Label\\s*>",
-                m => { found++; return m.Value + "\n" + controls; }, RegexOptions.IgnoreCase);
-        }
-        if (found == 0) throw new InvalidDataException("StagingRoom.xml has no PlayerNameLabel. Repair stopped without changes.");
-        XDocument.Parse(patched);
-        return encoded.Encode(patched);
+        var encoded=Decode(old);
+        string xml=Regex.Replace(encoded.Text,
+            @"(?s)<!-- DEATHNOTE_BADGES_BEGIN -->.*?<!-- DEATHNOTE_BADGES_END -->\s*","");
+        if(!xml.Contains("PlayerNameLabel",StringComparison.Ordinal))
+            throw new InvalidDataException("StagingRoom.xml has no PlayerNameLabel. Repair stopped without changes.");
+        XDocument.Parse(xml);
+        return encoded.Encode(xml);
     }
 
     private static byte[] PatchGameScript(byte[] original, byte[] addonBytes)
@@ -417,10 +378,12 @@ public static class Civ5IntegrationService
             new(lua, luaAsset, "game/StagingRoom.lua"),
             new(xml, xmlAsset, "game/StagingRoom.xml")
         };
+        // These five files belong exclusively to the discontinued badge feature.
+        // Back them up before deletion so repair remains reversible.
         foreach (string name in Icons)
         {
-            string filename = "DN_" + name + ".dds";
-            targets.Add(new Change(Path.Combine(lobby, filename), Asset("lobby_icons." + filename), "game/" + filename));
+            string filename="DN_"+name+".dds";
+            targets.Add(new Change(Path.Combine(lobby,filename),null,"game/"+filename,Remove:true));
         }
         var inGame = InGameFiles(game).ToArray();
         if (inGame.Length == 0) throw new InvalidDataException("Cannot locate InGame.lua in Civ V Assets/UI or Assets/DLC.");
@@ -445,7 +408,8 @@ public static class Civ5IntegrationService
         foreach (var c in planned)
         {
             byte[]? before = File.Exists(c.Target) ? File.ReadAllBytes(c.Target) : null;
-            if (before is not null && before.AsSpan().SequenceEqual(c.Bytes)) continue;
+            if (c.Remove && before is null) continue;
+            if (!c.Remove && before is not null && c.Bytes is not null && before.AsSpan().SequenceEqual(c.Bytes)) continue;
             changed.Add(new ExistingFile(c, before));
         }
         if (changed.Count == 0) return new RepairResult(0, "No changes necessary");
@@ -459,16 +423,22 @@ public static class Civ5IntegrationService
             if (f.Before is not null) File.WriteAllBytes(dest, f.Before);
         }
         File.WriteAllLines(Path.Combine(backup, "CHANGED_FILES.txt"), changed.Select(f =>
-            (f.Before is null ? "NEW " : "MODIFIED ") + f.Change.Target));
+            (f.Change.Remove ? "REMOVED " : f.Before is null ? "NEW " : "MODIFIED ") + f.Change.Target));
         var applied = new List<ExistingFile>();
         try
         {
             foreach (var f in changed)
             {
+                if(f.Change.Remove)
+                {
+                    File.Delete(f.Change.Target);
+                    applied.Add(f);
+                    continue;
+                }
                 string temp = f.Change.Target + ".deathnote-" + Guid.NewGuid().ToString("N") + ".tmp";
                 try
                 {
-                    File.WriteAllBytes(temp, f.Change.Bytes);
+                    File.WriteAllBytes(temp, f.Change.Bytes!);
                     // Rename over target on the same volume (no partially written Lua/XML).
                     File.Move(temp, f.Change.Target, overwrite: true);
                     applied.Add(f);

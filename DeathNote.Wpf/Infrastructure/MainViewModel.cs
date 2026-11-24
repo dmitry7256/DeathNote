@@ -22,6 +22,7 @@ public sealed class MainViewModel : Observable, IDisposable
     private bool _autoKickEnabled;
     private readonly CancellationTokenSource _lifetime=new();
     private readonly SemaphoreSlim _reloadGate=new(1,1);
+    private readonly SemaphoreSlim _matchSaveGate=new(1,1);
     private GameMonitorService? _monitor;
     private GameLogIngestionService? _ingestor;
     private readonly DispatcherTimer _gameExitTimer;
@@ -416,7 +417,7 @@ public sealed class MainViewModel : Observable, IDisposable
                 if (SelectedPlayer is null) SelectedPlayer = PlayerView.Cast<PlayerRecord>().FirstOrDefault();
                 if (SelectedMatch is null) SelectedMatch = MatchView.Cast<MatchRecord>().FirstOrDefault();
             }
-            if(gamesChanged)
+            if(gamesChanged || force)
             {
                 Stats.Recalculate(Matches);
                 PendingReviewCount=Matches.Count(m=>!m.Deleted && m.ReviewPending);
@@ -643,9 +644,21 @@ public sealed class MainViewModel : Observable, IDisposable
     public async Task<bool> SaveMatchCheckedAsync(string id,MatchPatch patch)
     {
         if(!_initialized)return false;
+        try { await _matchSaveGate.WaitAsync(_lifetime.Token); }
+        catch (OperationCanceledException) { return false; }
         try
         {
             await _repo.SaveMatchAsync(id,patch,_gameRevision,_lifetime.Token);
+            // Immediately update visible statistics on the UI thread after commit,
+            // before the complete SQLite snapshot finishes loading.
+            var edited = Matches.FirstOrDefault(m=>m.Id==id);
+            if(edited is not null)
+            {
+                edited.Deleted=patch.Deleted;
+                edited.Result=patch.Result;
+                edited.WinnerId=patch.WinnerId;
+                Stats.Recalculate(Matches);
+            }
             await ReloadIfChangedAsync(force:true);
             return true;
         }
@@ -655,6 +668,7 @@ public sealed class MainViewModel : Observable, IDisposable
             MessageBox.Show(e.Message,"Death Note",MessageBoxButton.OK,MessageBoxImage.Error);
             return false;
         }
+        finally { _matchSaveGate.Release(); }
     }
     public async Task SaveMatchAsync(string id,MatchPatch patch) => await SaveMatchCheckedAsync(id,patch);
     /// <summary>Export a consistent copy; never copy the live SQLite file or its WAL manually.</summary>

@@ -32,7 +32,7 @@ public static class InstallerUpdateService
         if (File.Exists(partialPath)) File.Delete(partialPath);
 
         using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("DeathNote-WPF-Updater/3.00");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("DeathNote-WPF-Updater/3.02");
         using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
         long? totalBytes = response.Content.Headers.ContentLength;

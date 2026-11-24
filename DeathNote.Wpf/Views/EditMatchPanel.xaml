@@ -5,7 +5,7 @@
     <!-- Inline modal: one persistent instance; centered panel, not a second Windows window. -->
     <Border Background="#FF261F29" BorderBrush="#FF795267" BorderThickness="1" CornerRadius="9"
             HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="430" Width="550" MaxWidth="550"
-            MaxHeight="540" Margin="12" Padding="15,13">
+            MaxHeight="565" Margin="12" Padding="15,13">
       <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <TextBlock Text="EDIT MATCH" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,11"/>
@@ -48,10 +48,20 @@
                      TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
           </Grid>
         </ScrollViewer>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-          <Button Style="{StaticResource SubtleButton}" Content="Cancel" Click="Cancel" Width="98" Margin="0,0,7,0"/>
-          <Button Style="{StaticResource PlayerSaveButton}" Height="31" Content="Save" Click="Save" Width="114"/>
-        </StackPanel>
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="8"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock Grid.Column="0" FontSize="10.5" LineHeight="14" TextWrapping="Wrap"
+                     VerticalAlignment="Center" Foreground="{StaticResource Muted}"
+                     Text="Completed + winner: wins/losses update automatically — no manual counters needed. In a 1v1, All players left adds a quit to the opponent"/>
+          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Style="{StaticResource SubtleButton}" Content="Cancel" Click="Cancel" Width="88" Margin="0,0,7,0"/>
+            <Button Style="{StaticResource PlayerSaveButton}" Height="31" Content="Save" Click="Save" Width="90"/>
+          </StackPanel>
+        </Grid>
       </Grid>
     </Border>
   </Grid>
