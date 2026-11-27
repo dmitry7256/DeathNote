@@ -20,7 +20,7 @@ $iss=Join-Path $root 'installer\DeathNote.iss'
 Write-Host 'Compiling Windows Setup.exe ...' -ForegroundColor Cyan
 & $compiler $iss
 if($LASTEXITCODE -ne 0){throw 'Inno Setup compiler failed.'}
-$setup=Join-Path $root 'DeathNote_Setup_3.02_x64.exe'
+$setup=Join-Path $root 'DeathNote_Setup_3.04_x64.exe'
 if(-not (Test-Path $setup)){throw 'Expected Setup.exe was not created.'}
 Write-Host ('Installer ready: '+$setup) -ForegroundColor Green
 Write-Host 'Share ONLY the installer EXE with end users, not the source files or private data.'

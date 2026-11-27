@@ -62,7 +62,7 @@ try {
   New-Item -Path $registry -Force | Out-Null
   $uninstall='powershell.exe -NoProfile -ExecutionPolicy Bypass -File "'+(Join-Path $target 'UNINSTALL_FROM_SOURCE.ps1')+'"'
   New-ItemProperty -Path $registry -Name DisplayName -Value 'Death Note' -PropertyType String -Force | Out-Null
-  New-ItemProperty -Path $registry -Name DisplayVersion -Value '3.02' -PropertyType String -Force | Out-Null
+  New-ItemProperty -Path $registry -Name DisplayVersion -Value '3.04' -PropertyType String -Force | Out-Null
   New-ItemProperty -Path $registry -Name Publisher -Value 'Death Note' -PropertyType String -Force | Out-Null
   New-ItemProperty -Path $registry -Name InstallLocation -Value $target -PropertyType String -Force | Out-Null
   New-ItemProperty -Path $registry -Name DisplayIcon -Value (Join-Path $target 'DeathNote.exe') -PropertyType String -Force | Out-Null

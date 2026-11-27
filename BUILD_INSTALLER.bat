@@ -1,11 +1,11 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-echo Building Death Note 3.02 Setup.exe (Windows x64)...
+echo Building Death Note 3.04 Setup.exe (Windows x64)...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0BUILD_INSTALLER.ps1"
 set "RESULT=%ERRORLEVEL%"
 echo.
 if not "%RESULT%"=="0" echo Build failed. Check INSTALL_COMPILER.log or install Inno Setup 6.
-if "%RESULT%"=="0" echo Ready: DeathNote_Setup_3.02_x64.exe
+if "%RESULT%"=="0" echo Ready: DeathNote_Setup_3.04_x64.exe
 pause
 exit /b %RESULT%

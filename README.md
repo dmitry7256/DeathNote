@@ -1,60 +1,25 @@
-# Death Note — Civilization V
+# Death Note 3.04 — Civilization V multiplayer tracker
 
-**Death Note** — приложение для Windows 10/11 x64 на C# + WPF для работы с игроками Civilization V и историей сетевых матчей.
+Windows C# + WPF app for tracking players, nicknames, bans, reviews and Civ V matches. Includes SQLite import/export, game module checking, and GitHub installer updates.
 
-## Скачать и установить
+## Install
 
-1. Откройте [последний релиз](https://github.com/dmitry7256/DeathNote/releases/latest)
-2. В разделе **Assets** скачайте `DeathNote_Setup_3.02_x64.exe` (для релиза 3.02) либо установщик последней стабильной версии
-3. Полностью закройте предыдущую версию Death Note, включая процесс в трее
-4. Запустите скачанный **Setup.exe**, завершите установку и откройте Death Note
-5. В Settings нажмите **Check integrity**, затем **Check modules**
+Download `DeathNote_Setup_3.04_x64.exe` from GitHub Releases. Close Death Note before running Setup. Do not run `INSTALL_FROM_SOURCE.bat` over an existing Inno Setup installation.
 
-Готовый установщик содержит необходимые компоненты .NET. Отдельно устанавливать Python и .NET SDK не нужно.
+### Configure Civilization V integration
 
-> Переход с прежних выпусков **3.29.x** на новую линейку **3.00+** выполняйте через чистую установку: старые номера численно больше. Сначала экспортируйте базу данных, удалите предыдущую программу, установите 3.00 и импортируйте базу.
+- **Settings → Check integrity** checks the SQLite database
+- **Settings → Check modules** checks Lua/XML integration, logging and module versions
+- **Choose game folder:** root of the Civilization V installation (`Steam → Civilization V → Manage → Browse local files`)
+- **Choose config.ini:** under `Documents\My Games\Sid Meier's Civilization 5\config.ini` (or `OneDrive\Documents` on redirected profiles)
+- Close the game, then run **Repair / install** only when Check modules reports a repair is needed
 
-## Первоначальная настройка Civilization V
+### Saved games and desyncs
 
-Откройте **Settings** и укажите локальное имя игрока через **Save nickname**.
+In 3.04 a high-turn reload without a new lobby is recognized as a continuation only when the prior match is a qualifying crashed/unspecified one-on-one game, and opponent Steam ID, map, civilization, turns, and time window agree. Ambiguous cases are kept separate. Existing historical duplicates are not modified automatically.
 
-- **Choose game folder** — выберите **корневую папку** установленной игры, а не `Assets` или конкретный `.lua`. Типичный путь: `C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization V`. Если Steam установлен в другое место: Steam → Библиотека → Civilization V → Управление → Просмотреть локальные файлы.
-- **Choose config.ini** — выберите пользовательский файл `config.ini`, обычно `Документы\My Games\Sid Meier's Civilization 5\config.ini`. Если «Документы» перенесены, также проверьте `OneDrive\Documents\My Games\Sid Meier's Civilization 5\config.ini`.
-- **Check modules** — проверяет Lua/XML-модули интеграции Civilization V, отслеживание матчей и игровое логирование.
-- **Repair / install** — нажмите, если видите `Repair required`. **Перед восстановлением полностью закройте Civilization V**. Приложение создаст резервные копии изменяемых игровых файлов.
-- После восстановления перезапустите игру, создайте сетевое лобби и повторите **Check modules**. Для подтверждения событий `Lua.log` может понадобиться открыть лобби или сыграть матч.
+### Player data
 
-После Steam → Проверить целостность файлов игры игровые скрипты могут быть восстановлены к оригинальным. Повторите **Check modules** и при необходимости **Repair / install**.
+The SQLite database and backups live under `%LOCALAPPDATA%\DeathNote\data`. Use **Settings → Export database** before upgrades and **Settings → Import database** to restore a saved `.db`. Never upload personal databases to public GitHub repositories.
 
-## База данных и проверка целостности
-
-В **Settings → Check integrity** проверяется **SQLite-база Death Note**, а не файлы Civilization V. Данные игроков, Steam ID, оценки, заметки, баны и история матчей хранятся отдельно от приложения:
-
-`%LOCALAPPDATA%\DeathNote\data`
-
-Для переноса данных используйте **Settings → Export database**, а после установки новой версии — **Settings → Import database**, указав основной файл `.db`. Программа проверяет файл перед импортом и создаёт резервную копию. Сохраняйте экспорт в безопасном месте и проверяйте импорт до удаления старых данных. Во время работы SQLite могут присутствовать файлы `-wal` и `-shm`: не удаляйте их, пока программа открыта.
-
-## Обновления
-
-Откройте **Settings → Check for updates**. Если в GitHub Releases опубликован более новый стабильный установщик с именем `DeathNote_Setup_<версия>_x64.exe`, активируется **Download and install update**. Death Note скачает установщик и запустит его; данные в `%LOCALAPPDATA%\DeathNote\data` останутся отдельно от файлов программы.
-
-Обновление **3.01 → 3.02** можно проверить после публикации нового установщика `DeathNote_Setup_3.02_x64.exe` в релизе `v3.02`. Если в интерфейсе игры остались старые значки возле ников, после обновления закройте Civilization V и выполните **Settings → Check modules → Repair / install** — игровые текстуры и XML-вставки Death Note будут удалены с резервными копиями
-
-## Сборка из исходников — только для разработчиков
-
-Для сборки Windows-установщика нужны .NET 10 SDK и Inno Setup 6. Запустите `BUILD_INSTALLER.bat` в корне исходников. Готовый `DeathNote_Setup_<версия>_x64.exe` появится в той же папке. Пользователям следует скачивать именно EXE из раздела **Assets**, а не архив исходников.
-
-Программа устанавливается для текущего пользователя Windows. Пользовательские данные и игровые файлы не входят в установщик.
-
-## Автоматические результаты матчей (с версии 3.02)
-
-- **Completed + Winner**: победитель, если это игрок из базы, получает +1 победу; все остальные соперники из этого матча получают +1 поражение. Для победы локального игрока увеличиваются только поражения соперников — локальная запись не создаётся
-- **All players left**: если в матче был ровно один соперник, ему добавляется +1 выход
-- **Unspecified / Restart / Game crashed**: автоматических начислений нет
-- Редактирование результата/победителя или удаление матча отменяет ранее добавленные **этим матчем** счётчики; повторное сохранение их не дублирует. Для этого в SQLite автоматически создаётся служебная таблица `match_counter_awards` при первом изменении исхода
-- Старые завершённые матчи автоматически не пересчитываются, пока их результат не изменён вручную. Если старые победы или поражения уже были внесены вручную, проверяйте такие матчи перед повторным учётом
-- По-прежнему доступно ручное изменение счётчиков, но после выставления результата матча повторять начисление вручную не требуется
-
-## Что изменилось в лобби 3.02
-
-Значки возле никнеймов удалены. Данные об игроках (оценка, избранное, статус бана, победы, поражения, выходы и примечание) отображаются через подсказку при наведении на имя. Автокик и сбор событий матчей сохранены
+See `RELEASE_NOTES_3.04.md` for the patch details.
