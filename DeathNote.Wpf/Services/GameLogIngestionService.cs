@@ -15,7 +15,7 @@ public sealed record GameObservedMatch(
     string Id, string Started, string LastAt, string? Ended, string Clock,
     string Map, string LocalNick, string LocalCiv, long? FirstTurn, long? LastTurn,
     long LastOffset, IReadOnlyList<GameObservedParticipant> Participants,
-    bool NotifyReview,string Title="");
+    bool NotifyReview,string Title="",bool Resumed=false);
 
 public sealed record GameImportBatch(IReadOnlyList<GameObservedPlayer> Players,
     IReadOnlyList<GameObservedMatch> Matches);
@@ -46,16 +46,16 @@ public sealed class GameLogIngestionService
         public string? Ended;
         public long? FirstTurn,LastTurn;
         public long LastOffset;
-        public bool NotifyReview;
+        public bool NotifyReview,Resumed,StartedWithoutLaunch;
         public readonly Dictionary<string,GameObservedParticipant> Players=new(StringComparer.Ordinal);
         public GameObservedMatch Snapshot() => new(Id,Started,LastAt,Ended,Clock,Map,LocalNick,
-            LocalCiv,FirstTurn,LastTurn,LastOffset,Players.Values.ToArray(),NotifyReview,Title);
+            LocalCiv,FirstTurn,LastTurn,LastOffset,Players.Values.ToArray(),NotifyReview,Title,Resumed);
         public Session Clone()
         {
             var clone=new Session{Id=Id,Started=Started,LastAt=LastAt,Ended=Ended,
                 Clock=Clock,Map=Map,LocalNick=LocalNick,LocalCiv=LocalCiv,Title=Title,
                 FirstTurn=FirstTurn,LastTurn=LastTurn,LastOffset=LastOffset,
-                NotifyReview=NotifyReview};
+                NotifyReview=NotifyReview,Resumed=Resumed,StartedWithoutLaunch=StartedWithoutLaunch};
             foreach(var (sid,part) in Players)clone.Players[sid]=part;
             return clone;
         }
@@ -114,6 +114,29 @@ public sealed class GameLogIngestionService
                 active.NotifyReview=entry.Live;
                 matches[active.Id]=active.Snapshot();
                 _active=null;
+            }
+        }
+        // A high-turn START without a lobby LAUNCH may be a desync/reload.
+        // Wait for the actual opponent's Steam ID before deciding; the map,
+        // civilization and turn alone cannot identify a multiplayer match.
+        if(_active is { Resumed:false, StartedWithoutLaunch:true, FirstTurn:>=5 } maybeResume)
+        {
+            if(maybeResume.Players.Count==0 && maybeResume.Ended is null)
+                matches.Remove(maybeResume.Id);
+            else if(maybeResume.Players.Count==1)
+            {
+                var candidate=await _repository.FindSavedGameContinuationAsync(maybeResume.Snapshot(),ct);
+                if(candidate is not null)
+                {
+                    string newSessionId=maybeResume.Id;
+                    maybeResume.Id=candidate.MatchId;
+                    maybeResume.Started=candidate.Started;
+                    maybeResume.FirstTurn=candidate.FirstTurn;
+                    if(!string.IsNullOrWhiteSpace(candidate.Title))maybeResume.Title=candidate.Title;
+                    maybeResume.Resumed=true;
+                    matches.Remove(newSessionId);
+                    matches[maybeResume.Id]=maybeResume.Snapshot();
+                }
             }
         }
         if(players.Count==0 && matches.Count==0)
@@ -242,7 +265,7 @@ public sealed class GameLogIngestionService
                 Title=kind=="LAUNCH" && args.Length==2 && !string.IsNullOrWhiteSpace(args[1])
                     ? args[1].Trim() : _lastLobbyName,
                 FirstTurn=kind=="START"?turn:null,LastTurn=kind=="START"?turn:null,
-                LastOffset=entry.Offset
+                LastOffset=entry.Offset,StartedWithoutLaunch=kind=="START"
             };
             // Retain the complete lobby roster even if the in-game mod has not
             // emitted its first PLAYER event yet.

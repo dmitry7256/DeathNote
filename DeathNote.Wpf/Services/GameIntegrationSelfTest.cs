@@ -226,6 +226,70 @@ public static class GameIntegrationSelfTest
             // in their detail panel, rather than inventing a nation or emblem.
             if ((new MatchRecord{Id="empty"}).LocalCivEnglish!="Not detected")
                 throw new InvalidOperationException("Missing civilization status was not explicit.");
+            // A desync at turn 97 may restart the same saved game without a
+            // staging-room LAUNCH. This must not create a second history row or
+            // double-award counters after the final outcome is saved.
+            string resumeDb=Path.Combine(dir,"resume-test.db");
+            var seed=Application.GetResourceStream(new Uri("/Assets/empty-deathnote-v3.db",UriKind.Relative))
+                ?? throw new InvalidDataException("Empty SQLite template missing.");
+            using(var input=seed.Stream)
+            using(var output=new FileStream(resumeDb,FileMode.CreateNew))
+                await input.CopyToAsync(output);
+            var resumeRepo=new SqliteRepository(resumeDb);
+            string resumeLog=Path.Combine(dir,"resume-Lua.log");
+            var originalSession=new GameLogIngestionService(resumeRepo,resumeLog);
+            var firstSession=await originalSession.IngestAsync([
+                new GameLogLine(100,$"[CIV5_MATCH] START|{epoch+900}|0|West%20vs%20East|Huns",true),
+                new GameLogLine(200,$"[CIV5_MATCH] PLAYER|{epoch+900}|0|{sid}|Wolfaff|Carthage",true),
+                new GameLogLine(350,$"[CIV5_MATCH] TURN|{epoch+1100}|97",true),
+                new GameLogLine(430,$"[CIV5_MATCH] END|{epoch+1100}|97",true)
+            ],"Host");
+            var prior=await resumeRepo.ReadSnapshotAsync();
+            if(!firstSession.MatchesChanged || prior.Matches.Count!=1)
+                throw new InvalidOperationException("Pre-desync match not created.");
+            string canonicalId=prior.Matches[0].Id;
+            var crash=prior.Matches[0];
+            await resumeRepo.SaveMatchAsync(canonicalId,
+                new MatchPatch(crash.Title,"Keep note", "Игра сломалась","__unset__",false,false,false),
+                prior.GamesRevision);
+            var reloaded=new GameLogIngestionService(resumeRepo,resumeLog);
+            await reloaded.IngestAsync([
+                new GameLogLine(700,$"[CIV5_MATCH] START|{epoch+1100}|97|West%20vs%20East|Huns",true),
+                new GameLogLine(800,$"[CIV5_MATCH] PLAYER|{epoch+1100}|97|{sid}|Wolfaff|Carthage",true),
+                new GameLogLine(850,$"[CIV5_MATCH] TURN|{epoch+1120}|98",true)
+            ],"Host");
+            await reloaded.IngestAsync([
+                new GameLogLine(900,$"[CIV5_MATCH] END|{epoch+1220}|104",true)
+            ],"Host");
+            var combined=await resumeRepo.ReadSnapshotAsync();
+            if(combined.Matches.Count!=1 || combined.Matches[0].Id!=canonicalId ||
+               combined.Matches[0].StartTurn!=0 || combined.Matches[0].LastTurn!=104 ||
+               combined.Matches[0].Note!="Keep note")
+                throw new InvalidOperationException("A resumed save created a duplicate or lost match details.");
+            await resumeRepo.SaveMatchAsync(canonicalId,
+                new MatchPatch(combined.Matches[0].Title,"Keep note", "Успешно","__local__",false,false,false),
+                combined.GamesRevision);
+            var counted=await resumeRepo.ReadSnapshotAsync();
+            if(counted.Players.Count!=1 || counted.Players[0].Losses!=1)
+                throw new InvalidOperationException("Merged result did not award exactly one loss.");
+            await resumeRepo.SaveMatchAsync(canonicalId,
+                new MatchPatch(counted.Matches[0].Title,"Updated note", "Успешно","__local__",false,false,false),
+                counted.GamesRevision);
+            var once=await resumeRepo.ReadSnapshotAsync();
+            if(once.Matches.Count!=1 || once.Players[0].Losses!=1)
+                throw new InvalidOperationException("Saving merged result duplicated counter awards.");
+            // A different opponent at the same turn must remain a distinct game.
+            string otherSid="76561198070436087";
+            var independent=new GameLogIngestionService(resumeRepo,resumeLog);
+            await independent.IngestAsync([
+                new GameLogLine(1300,$"[CIV5_MATCH] START|{epoch+1230}|97|West%20vs%20East|Huns",true),
+                new GameLogLine(1380,$"[CIV5_MATCH] PLAYER|{epoch+1230}|97|{otherSid}|Other|Carthage",true),
+                new GameLogLine(1420,$"[CIV5_MATCH] END|{epoch+1270}|98",true)
+            ],"Host");
+            if((await resumeRepo.ReadSnapshotAsync()).Matches.Count!=2)
+                throw new InvalidOperationException("Unrelated match was merged into the previous one.");
+            if(!await resumeRepo.CheckIntegrityAsync())
+                throw new InvalidOperationException("Merged save integrity check failed.");
             if(!await repo.CheckIntegrityAsync())
                 throw new InvalidOperationException("SQLite integrity or foreign keys failed.");
             report+="PASS: lobby player was inserted; launch title, participants and last turn persisted.\n"+
@@ -234,7 +298,9 @@ public static class GameIntegrationSelfTest
                     "PASS: updated, legacy and late TITLE protocols retain lobby title and final turn.\n"+
                     "PASS: Russian civilization and map names are normalized to English.\n"+
                     "PASS: Civilization V ICON/COLOR inline markup displayed without changing raw identities.\n"+
-                    "PASS: SQLite integrity checks.\n";
+                    "PASS: SQLite integrity checks.\n"+
+                    "PASS: high-turn save continuation uses one match and one counter award.\n"+
+                    "PASS: a different opponent never joins the previous match.\n";
         }
         catch(Exception error)
         {

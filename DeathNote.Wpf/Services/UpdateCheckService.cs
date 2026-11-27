@@ -21,7 +21,7 @@ public static class UpdateCheckService
     public static async Task<UpdateResult> CheckAsync(CancellationToken ct = default)
     {
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("DeathNote-WPF/3.02");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("DeathNote-WPF/3.04");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         using var response = await client.GetAsync(Api, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();

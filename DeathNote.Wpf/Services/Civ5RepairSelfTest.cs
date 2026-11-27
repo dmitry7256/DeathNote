@@ -18,7 +18,7 @@ public static class Civ5RepairSelfTest
             Path.Combine(game, "Assets", "DLC", "Expansion2", "InGame.lua")
         ];
         string config = Path.Combine(root, "My Games", "Sid Meier's Civilization 5", "config.ini");
-        string report = "DEATH NOTE 3.02 NATIVE GAME INTEGRATION SELF-TEST\n";
+        string report = "DEATH NOTE 3.04 NATIVE GAME INTEGRATION SELF-TEST\n";
         Directory.CreateDirectory(lobby);
         Directory.CreateDirectory(Path.GetDirectoryName(inGame)!);
         Directory.CreateDirectory(Path.GetDirectoryName(config)!);
