@@ -58,6 +58,73 @@ public sealed class SqliteRepository
         return !r.Read();
     },ct);
 
+    /// <summary>
+    /// Only a strong, one-on-one Civ V save continuation can reuse a previous match.
+    /// In particular, a new lobby LAUNCH is never a continuation, and completed,
+    /// manually edited, deleted and awarded matches are excluded. This is read-only:
+    /// the caller applies the continuation in its ordinary import transaction.
+    /// </summary>
+    public sealed record ContinuationCandidate(string MatchId,string Started,long? FirstTurn,string Title);
+
+    public Task<ContinuationCandidate?> FindSavedGameContinuationAsync(GameObservedMatch observation,
+        CancellationToken ct=default) => Task.Run(() =>
+    {
+        ct.ThrowIfCancellationRequested();
+        if (observation.FirstTurn is not long startTurn || startTurn<5 ||
+            observation.Participants.Count!=1 ||
+            !DateTimeOffset.TryParse(observation.Started,out var resumedAt)) return null;
+        string sid=observation.Participants[0].SteamId;
+        if(sid.Length!=17 || !sid.All(char.IsAsciiDigit))return null;
+        using var c=Open();
+        bool hasAwards=Convert.ToInt64(Scalar(c,null,
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='match_counter_awards'"),CultureInfo.InvariantCulture)>0;
+        using var cmd=c.CreateCommand();
+        cmd.CommandText="""
+            SELECT m.id,m.started,m.start_turn,m.title,m.last_at,m.map,m.local_civ,m.local_nick
+            FROM matches m
+            JOIN match_players p ON p.match_id=m.id
+            WHERE m.deleted=0 AND m.manual_edit=0 AND m.id<>$id
+              AND m.last_turn BETWEEN $turn - 1 AND $turn
+              AND m.result IN ('Игра сломалась','Game crashed','Не указано','Unspecified','')
+              AND p.steamid=$sid
+              AND (SELECT count(*) FROM match_players WHERE match_id=m.id)=1
+            ORDER BY m.position DESC LIMIT 50
+            """;
+        if(hasAwards)
+            cmd.CommandText=cmd.CommandText.Replace("ORDER BY m.position",
+                "AND NOT EXISTS (SELECT 1 FROM match_counter_awards a WHERE a.match_id=m.id) ORDER BY m.position");
+        cmd.Parameters.AddWithValue("$id",observation.Id);
+        cmd.Parameters.AddWithValue("$turn",startTurn);
+        cmd.Parameters.AddWithValue("$sid",sid);
+        var possible=new List<(string Id,string Started,long? FirstTurn,string Title,string LastAt,string Map,string Civ,string LocalNick)>();
+        using(var reader=cmd.ExecuteReader())while(reader.Read())
+        {
+            possible.Add((reader.GetString(0),reader.IsDBNull(1)?"":reader.GetString(1),
+                reader.IsDBNull(2)?null:(long?)Convert.ToInt64(reader.GetValue(2),CultureInfo.InvariantCulture),
+                reader.IsDBNull(3)?"":reader.GetString(3),
+                reader.IsDBNull(4)?"":reader.GetString(4),
+                reader.IsDBNull(5)?"":reader.GetString(5),
+                reader.IsDBNull(6)?"":reader.GetString(6),
+                reader.IsDBNull(7)?"":reader.GetString(7)));
+        }
+        ContinuationCandidate? match=null;
+        foreach(var item in possible)
+        {
+            if(!DateTimeOffset.TryParse(item.LastAt,out var endedAt) ||
+               !DateTimeOffset.TryParse(item.Started,out var originalStart) ||
+               originalStart>=resumedAt || endedAt>resumedAt ||
+               resumedAt-endedAt>TimeSpan.FromMinutes(20) ||
+               !string.Equals(MapNames.Format(item.Map),MapNames.Format(observation.Map),StringComparison.OrdinalIgnoreCase) ||
+               !string.Equals(CivilizationNames.Format(item.Civ),CivilizationNames.Format(observation.LocalCiv),StringComparison.OrdinalIgnoreCase) ||
+               (!string.IsNullOrWhiteSpace(item.LocalNick) && !string.IsNullOrWhiteSpace(observation.LocalNick) &&
+                !string.Equals(item.LocalNick,observation.LocalNick,StringComparison.OrdinalIgnoreCase))) continue;
+            // Multiple plausible matches must never be joined automatically.
+            if(match is not null)return null;
+            match=new ContinuationCandidate(item.Id,item.Started,item.FirstTurn,item.Title);
+        }
+        return match;
+    },ct);
+
     public Task<(long Players,long Games,long Preferences)> ReadRevisionsAsync(CancellationToken ct=default) => Task.Run(() =>
     {
         using var c=Open();
@@ -256,9 +323,11 @@ public sealed class SqliteRepository
         using var c=Open(write:true);using var tx=c.BeginTransaction();
         VerifyRevision(c,tx,"games",expectedRevision);
         var old=LoadFullMatch(c,tx,id) ?? throw new KeyNotFoundException("The match was deleted or moved.");
-        if(patch.Deleted && !Bool(old,"deleted") &&
-           string.IsNullOrEmpty(Str(old,"ended")) && string.IsNullOrEmpty(Str(old,"menu_return_at")) && string.IsNullOrEmpty(Str(old,"observed_end_at")))
-            throw new InvalidOperationException("An unfinished match cannot be deleted.");
+        // A manually selected terminal outcome also finalizes the match. The
+        // game may not have emitted an end timestamp after a crash or disconnect.
+        if (patch.Deleted && !Bool(old,"deleted") && !MatchLifecycle.IsFinished(
+            Str(old,"ended"), Str(old,"menu_return_at"), Str(old,"observed_end_at"), Str(old,"result")))
+            throw new InvalidOperationException("A match still in progress cannot be deleted. Set a final result first.");
         if(patch.WinnerId!="__unset__" && patch.WinnerId!="" && patch.WinnerId!="__local__" &&
            (old["players"] is not JsonObject allPlayers || !allPlayers.ContainsKey(patch.WinnerId)))
             throw new ArgumentException("The winner must be a match participant.");
@@ -359,7 +428,8 @@ public sealed class SqliteRepository
     {
         var desired=new Dictionary<string,MatchCounterAward>(StringComparer.Ordinal);
         if (Bool(match,"deleted") ||
-            (Str(match,"ended").Length==0 && Str(match,"menu_return_at").Length==0 && Str(match,"observed_end_at").Length==0) ||
+            !MatchLifecycle.IsFinished(Str(match,"ended"), Str(match,"menu_return_at"),
+                Str(match,"observed_end_at"), Str(match,"result")) ||
             match["players"] is not JsonObject players) return desired;
         // The host is stored in local_nick; match_players contains only opponents.
         var opponents=players.Select(x=>x.Key)
@@ -528,10 +598,17 @@ public sealed class SqliteRepository
             ct.ThrowIfCancellationRequested();
             if(observation.Id.Length!=64 || !observation.Id.All(Uri.IsHexDigit))continue;
             var old=LoadFullMatch(c,tx,observation.Id);
-            if(old is not null && (Bool(old,"manual_edit") ||
+            if(old is not null && !observation.Resumed && (Bool(old,"manual_edit") ||
                !string.IsNullOrEmpty(Str(old,"ended")) ||
                !string.IsNullOrEmpty(Str(old,"menu_return_at")) ||
                !string.IsNullOrEmpty(Str(old,"observed_end_at"))))continue;
+            // Never overwrite a manually finished match while resuming a save.
+            // A confirmed resumed segment may reopen only its previously crashed
+            // or unspecified predecessor, which never has auto-awarded counters.
+            if(old is not null && observation.Resumed &&
+               (Bool(old,"deleted") || Bool(old,"manual_edit") ||
+                Str(old,"result") is not ("Игра сломалась" or "Game crashed" or "Не указано" or "Unspecified" or "") ||
+                HasMatchCounterAwards(c,tx,observation.Id))) continue;
             bool newMatch=old is null;
             if(!newMatch && Number(old!,"last_offset")>=observation.LastOffset)continue;
             bool completed=observation.Ended is not null;
@@ -574,17 +651,21 @@ public sealed class SqliteRepository
                                  THEN $title ELSE title END,
                       start_turn=COALESCE(start_turn,$first),last_turn=$turn,
                       last_offset=$offset,
+                      result=CASE WHEN $resume=1 THEN 'Не указано' ELSE result END,
+                      review_pending=CASE WHEN $resume=1 AND $ended IS NULL THEN 0 ELSE review_pending END,
                       present=(present | $bits)
                     WHERE id=$id
                     """,("$last",observation.LastAt),("$ended",observation.Ended),
                     ("$map",observation.Map),("$civ",observation.LocalCiv),
-                    ("$title",observation.Title),
+                    ("$title",observation.Title),("$resume",observation.Resumed?1:0),
                     ("$first",observation.FirstTurn),("$turn",observation.LastTurn),
                     ("$offset",observation.LastOffset),
                     ("$bits",Bit("title",MatchFields)|Bit("last_at",MatchFields)|Bit("ended",MatchFields)|
                         Bit("map",MatchFields)|Bit("local_civ",MatchFields)|
                         Bit("start_turn",MatchFields)|Bit("last_turn",MatchFields)|
-                        Bit("last_offset",MatchFields)),("$id",observation.Id));
+                        Bit("last_offset",MatchFields)|
+                        (observation.Resumed ? Bit("result",MatchFields)|Bit("review_pending",MatchFields):0)),
+                    ("$id",observation.Id));
                 changedMatches=true;
             }
             if(review)
@@ -710,7 +791,8 @@ public sealed class SqliteRepository
         StartTurn=row["start_turn"] is null?null:Number(row,"start_turn"),
         LastTurn=row["last_turn"] is null?null:Number(row,"last_turn"),Ended=Str(row,"ended"),
         Map=Str(row,"map"),LocalCiv=Str(row,"local_civ"),LocalNick=Str(row,"local_nick"),
-        Completed= !string.IsNullOrEmpty(Str(row,"ended")) || !string.IsNullOrEmpty(Str(row,"menu_return_at")) || !string.IsNullOrEmpty(Str(row,"observed_end_at"))
+        Completed=MatchLifecycle.IsFinished(Str(row,"ended"), Str(row,"menu_return_at"),
+            Str(row,"observed_end_at"), Str(row,"result"))
     };
 
     private static string WinnerName(MatchRecord m,IReadOnlyList<MatchParticipant> people)
@@ -927,7 +1009,9 @@ public sealed class SqliteRepository
             Execute(c,tx,"DELETE FROM stat_facts WHERE id=$id",("$id",id));
         }
         Execute(c,tx,"DELETE FROM stat_invalid WHERE id=$id",("$id",id));
-        if(Bool(record,"deleted") || !(Str(record,"ended").Length>0 || Str(record,"menu_return_at").Length>0 || Str(record,"observed_end_at").Length>0))return;
+        if (Bool(record,"deleted") || !MatchLifecycle.IsFinished(
+            Str(record,"ended"), Str(record,"menu_return_at"),
+            Str(record,"observed_end_at"), Str(record,"result"))) return;
         if(!DateTimeOffset.TryParse(Str(record,"started"),out var started))
         {
             Execute(c,tx,"INSERT INTO stat_invalid(id) VALUES ($id)",("$id",id));return;
